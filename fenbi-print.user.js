@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.1
+// @version      1.6.2
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.1';
+    const VERSION = '1.6.2';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -313,6 +313,8 @@
 .fp-row{display:flex;gap:8px}
 .fp-row>.fp-field{flex:1}
 .fp-foot{margin-top:11px;font-size:11px;color:#cbd5e1;text-align:center}
+.fp-contact{display:block;margin-top:5px;font-size:11px;color:#2563eb;text-align:center;text-decoration:none;cursor:pointer}
+.fp-contact:hover{text-decoration:underline}
 .fp-update{display:none;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:8px;
   background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.5}
 .fp-update a{color:#2563eb;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
@@ -415,6 +417,7 @@
 </div>
 
 <div class="fp-update" id="fp-update"></div>
+    <a class="fp-contact" href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a>
 <div class="fp-foot">v${VERSION}</div>`;
         document.body.appendChild(panel);
         return { panel, mask };
