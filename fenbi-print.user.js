@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.5.3
+// @version      1.6.0
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,16 +29,16 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.5.3';
+    const VERSION = '1.6.0';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
 
-    // 远程托管地址。留空 = 完全离线，一次网络请求都不发。
-    // 想让用户收到更新提示，就填自己的静态托管地址，例如：
-    //   const REMOTE = 'https://xxx.ap-shanghai.app.tcloudbase.com/fenbi-print';
-    // 该目录下需要放 version.json（见「分发说明.md」）。
+    // 检查更新：直接拉取源链接上的 fenbi-print.user.js，抽出它自带的 VERSION 与本地比对。
+    // 与书签拉取的地址保持一致（jsDelivr @main，国内稳），?t= 时间戳绕过 CDN 边缘缓存，确保拿到真最新。
+    const UPDATE_URL = 'https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';
+    // 旧版 version.json 托管方案已废弃：REMOTE 留空即不再联网，行为与之前一致。
     const REMOTE = '';
 
     // 题号悬挂缩进是固定排版，不提供开关
@@ -314,8 +314,15 @@
   background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.5}
 .fp-update a{color:#2563eb;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
 .fp-update i{margin-left:auto;font-style:normal;cursor:pointer;color:#b45309;padding:0 4px;flex-shrink:0}
+.fp-update.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.fp-update.ok a{display:none}
+.fp-update.busy{background:#f8fafc;border-color:#e2e8f0;color:#475569}
+.fp-update.busy a,.fp-update.busy i{display:none}
+.fp-update.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.fp-update.err a{display:none}
 `;
         const el = document.createElement('style');
+        el.id = 'fp-style';
         el.textContent = css;
         document.head.appendChild(el);
     }
@@ -401,6 +408,7 @@
     </div>
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
+    <button id="fp-check" class="fp-btn2" style="width:100%;margin-top:8px">检查更新</button>
 </div>
 
 <div class="fp-update" id="fp-update"></div>
@@ -473,6 +481,7 @@
             syncShenlunUI();
             saveSettings();
         });
+        $('fp-check').addEventListener('click', () => checkUpdate(true));
 
         $('fp-print').addEventListener('click', onPrint);
         $('fp-save').addEventListener('click', onSave);
@@ -486,9 +495,9 @@
     }
     function hideMask() { $('fp-mask').style.display = 'none'; }
 
-    /* ---------- 可选的新版本提示 ----------
-       REMOTE 留空时完全不联网，行为与之前一致。
-       填了地址才会去取一次 version.json；取不到就静默跳过，绝不影响排版功能。 */
+    /* ---------- 检查更新 ----------
+       直接拉取源链接（UPDATE_URL）上的 fenbi-print.user.js，抽出它自带的 VERSION 与本地比对，
+       不依赖任何 version.json；取不到就静默跳过，绝不影响排版功能。 */
 
     // 版本号比较：1.9 < 1.10，按段比数字，非数字段按字符串
     function cmpVer(a, b) {
@@ -504,31 +513,73 @@
         return 0;
     }
 
-    function checkUpdate() {
-        if (!REMOTE) return;
-        const base = REMOTE.replace(/\/+$/, '');
-        let dismissed = '';
-        try { dismissed = localStorage.getItem(STORE_UPD) || ''; } catch (e) { /* 忽略 */ }
+    // 从脚本源码里抽出版本号：优先 const VERSION，其次 @version
+    function extractVersion(text) {
+        const m = text && text.match(/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/);
+        if (m) return m[1];
+        const m2 = text && text.match(/@version\s+(\S+)/);
+        return m2 ? m2[1] : null;
+    }
 
-        fetch(base + '/version.json?t=' + Date.now(), { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((d) => {
-                if (!d || !d.version || cmpVer(d.version, VERSION) <= 0) return;
-                if (dismissed === String(d.version)) return;   // 用户已选择忽略这个版本
-                const box = $('fp-update');
-                if (!box) return;
-                box.innerHTML = `<span>发现新版本 v${esc(d.version)}`
-                    + (d.notes ? `：${esc(d.notes)}` : '')
-                    + `</span><a href="${esc(d.url || base + '/fenbi-print.user.js')}" target="_blank" rel="noopener">去更新</a>`
-                    + `<i id="fp-update-x" title="忽略此版本">×</i>`;
-                box.style.display = 'flex';
-                const x = $('fp-update-x');
-                if (x) x.addEventListener('click', () => {
+    function renderUpdate(html, cls) {
+        const box = $('fp-update');
+        if (!box) return;
+        box.className = 'fp-update' + (cls ? ' ' + cls : '');
+        box.innerHTML = html;
+        box.style.display = 'flex';
+    }
+
+    // manual=true：手动点「检查更新」，无论结果都给反馈；false：仅发现新版本才提示。
+    function checkUpdate(manual) {
+        const box = $('fp-update');
+        if (manual && box) renderUpdate('正在检查更新…', 'busy');
+        const url = UPDATE_URL + (UPDATE_URL.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+        fetch(url, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+            .then((txt) => {
+                const rv = extractVersion(txt);
+                if (!rv) {
+                    if (manual) renderUpdate('未能读取远程版本号，请稍后重试 <i id="fp-update-x">×</i>', 'err');
+                    else if (box) box.style.display = 'none';
+                } else if (cmpVer(rv, VERSION) > 0) {
+                    renderUpdate(`<span>发现新版本 <b>v${esc(rv)}</b>（当前 v${esc(VERSION)}）</span>` +
+                        `<a id="fp-update-now" href="javascript:void(0)">立即更新</a>` +
+                        `<i id="fp-update-x" title="忽略">×</i>`, '');
+                    const now = $('fp-update-now');
+                    if (now) now.addEventListener('click', () => forceUpdate());
+                } else if (manual) {
+                    renderUpdate(`已是最新 <b>v${esc(VERSION)}</b> ✓ <i id="fp-update-x">×</i>`, 'ok');
+                } else if (box) {
                     box.style.display = 'none';
-                    try { localStorage.setItem(STORE_UPD, String(d.version)); } catch (e) { /* 忽略 */ }
-                });
+                }
+                const x = $('fp-update-x');
+                if (x) x.addEventListener('click', () => { box.style.display = 'none'; });
             })
-            .catch(() => { /* 取不到就当没更新，不打扰用户 */ });
+            .catch(() => {
+                if (manual) renderUpdate('检查失败：网络或跨域受限，请稍后重试 <i id="fp-update-x">×</i>', 'err');
+                else if (box) box.style.display = 'none';
+                const x = $('fp-update-x');
+                if (x) x.addEventListener('click', () => { box.style.display = 'none'; });
+            });
+    }
+
+    // 立即更新：移除旧 UI 与样式，拉取最新脚本就地重注入。设置仍从 localStorage 读取。
+    function forceUpdate() {
+        const box = $('fp-update');
+        if (box) renderUpdate('正在拉取最新版…', 'busy');
+        const url = UPDATE_URL + (UPDATE_URL.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+        fetch(url, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+            .then((code) => {
+                ['fp-panel', 'fp-mask', 'fp-done', 'fp-loading', 'fp-style'].forEach((id) => {
+                    const el = document.getElementById(id);
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                });
+                const s = document.createElement('script');
+                s.textContent = code;
+                document.head.appendChild(s);
+            })
+            .catch(() => { if (box) renderUpdate('更新失败：网络或跨域受限 <i id="fp-update-x">×</i>', 'err'); });
     }
 
     /* ==================================================================
