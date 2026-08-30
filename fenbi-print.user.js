@@ -35,10 +35,12 @@
     const STORE_UPD = 'fenbi_print_update_dismiss';
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
 
-    // 检查更新：直接拉取源链接上的 fenbi-print.user.js，抽出它自带的 VERSION 与本地比对。
-    // 与书签拉取的地址保持一致（GitHub main 的 raw 链接，即用户指定的源），?t= 时间戳绕过浏览器缓存，确保拿到真最新。
+    // 检查更新 / 立即更新 的权威源：GitHub main 的 raw 链接（与书签主源一致，无 CDN 缓存滞后）。
+    // 该源不可达时自动回退到 jsDelivr 镜像作兜底，任何网络环境都能检查并拉取最新版。
+    // 更新逻辑完全内建、硬编码此地址，不依赖小书签代码是否正确——即便书签是旧版，脚本也能自我更新。
     const UPDATE_URL = 'https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';
-    // 旧版 version.json 托管方案已废弃：REMOTE 留空即不再联网，行为与之前一致。
+    const UPDATE_FB  = 'https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';
+    // 旧版 version.json 托管方案已废弃
     const REMOTE = '';
 
     // 题号悬挂缩进是固定排版，不提供开关
@@ -529,13 +531,20 @@
         box.style.display = 'flex';
     }
 
+    // 拉取最新脚本文本：主源 GitHub raw，失败回退 jsDelivr 镜像。两源都带时间戳绕过缓存。
+    function fetchLatest() {
+        const t = Date.now();
+        return fetch(UPDATE_URL + '?t=' + t, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+            .catch((e) => fetch(UPDATE_FB + '?t=' + t, { cache: 'no-store' })
+                .then((r) => (r.ok ? r.text() : Promise.reject(e))));
+    }
+
     // manual=true：手动点「检查更新」，无论结果都给反馈；false：仅发现新版本才提示。
     function checkUpdate(manual) {
         const box = $('fp-update');
         if (manual && box) renderUpdate('正在检查更新…', 'busy');
-        const url = UPDATE_URL + (UPDATE_URL.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
-        fetch(url, { cache: 'no-store' })
-            .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+        fetchLatest()
             .then((txt) => {
                 const rv = extractVersion(txt);
                 if (!rv) {
@@ -567,9 +576,7 @@
     function forceUpdate() {
         const box = $('fp-update');
         if (box) renderUpdate('正在拉取最新版…', 'busy');
-        const url = UPDATE_URL + (UPDATE_URL.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
-        fetch(url, { cache: 'no-store' })
-            .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+        fetchLatest()
             .then((code) => {
                 ['fp-panel', 'fp-mask', 'fp-done', 'fp-loading', 'fp-style'].forEach((id) => {
                     const el = document.getElementById(id);
