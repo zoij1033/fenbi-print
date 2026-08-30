@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.0
+// @version      1.6.1
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,17 +29,18 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.0';
+    const VERSION = '1.6.1';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
 
-    // 检查更新 / 立即更新 的权威源：GitHub main 的 raw 链接（与书签主源一致，无 CDN 缓存滞后）。
-    // 该源不可达时自动回退到 jsDelivr 镜像作兜底，任何网络环境都能检查并拉取最新版。
-    // 更新逻辑完全内建、硬编码此地址，不依赖小书签代码是否正确——即便书签是旧版，脚本也能自我更新。
-    const UPDATE_URL = 'https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';
-    const UPDATE_FB  = 'https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';
+    // 检查更新 / 立即更新 的权威源：jsDelivr 的 @main 分支镜像（国内可稳定访问，不受 GitHub raw 的 CSP/网络限制）。
+    // 关键：jsDelivr 对 @main 有边缘缓存滞后，因此脚本在检查/更新前会主动 purge（刷新）该缓存，确保拉到 GitHub 最新版。
+    // GitHub raw 仅作兜底：仅当 jsDelivr 完全不可达时回退使用（你的网络通常能直连 jsDelivr，基本用不到）。
+    // 更新逻辑完全内建、硬编码此地址，不依赖小书签代码——书签链接永远锁 @main，今后无需任何改动即可更新。
+    const UPDATE_URL = 'https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';
+    const UPDATE_FB  = 'https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';
     // 旧版 version.json 托管方案已废弃
     const REMOTE = '';
 
@@ -531,7 +532,7 @@
         box.style.display = 'flex';
     }
 
-    // 拉取最新脚本文本：主源 GitHub raw，失败回退 jsDelivr 镜像。两源都带时间戳绕过缓存。
+    // 拉取最新脚本文本：主源 jsDelivr @main（已 purge 刷新），失败回退 GitHub raw 兜底。两源都带时间戳绕过缓存。
     function fetchLatest() {
         const t = Date.now();
         return fetch(UPDATE_URL + '?t=' + t, { cache: 'no-store' })
@@ -540,10 +541,48 @@
                 .then((r) => (r.ok ? r.text() : Promise.reject(e))));
     }
 
-    // manual=true：手动点「检查更新」，无论结果都给反馈；false：仅发现新版本才提示。
+    // 主动刷新 jsDelivr 边缘缓存，让它立即重新抓取 GitHub 最新版（fire-and-forget，忽略返回）。
+    // 这是解决「CDN 缓存滞后导致拿不到新版本」的核心：检查/更新前先 purge，再拉取即得最新。
+    let _lastPurge = 0;
+    try { _lastPurge = +(localStorage.getItem('fp_lastpurge') || 0) || 0; } catch (e) {}
+    function purgeCDN() {
+        const p = 'https://purge.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js?_=' + Date.now();
+        try {
+            // no-cors：请求发出即触发 CDN 刷新，opaque 响应读不到也无所谓
+            fetch(p, { mode: 'no-cors', cache: 'no-store' }).catch(function () {});
+            // Image 兜底：跨域也能发出请求，确保刷新被触发
+            new Image().src = p;
+        } catch (e) { /* 失败也无妨，只是本次刷新没触发 */ }
+    }
+    // 节流刷新：自动静默检查时调用，避免每次打开面板都打 purge 接口（jsDelivr 有速率限制）
+    function maybePurge(throttleMs) {
+        const now = Date.now();
+        if (now - _lastPurge > throttleMs) {
+            _lastPurge = now;
+            try { localStorage.setItem('fp_lastpurge', String(now)); } catch (e) {}
+            purgeCDN();
+            return true;
+        }
+        return false;
+    }
+    // purge 后 jsDelivr 重新抓取 GitHub 需要时间，等够了再拉取
+    const PURGE_WAIT = 2500;
+
+    // manual=true：手动点「检查更新」，先强制刷新 CDN 缓存，再比对并反馈。
+    // manual=false：面板自动静默检查，节流刷新 CDN，仅发现新版本才提示。
     function checkUpdate(manual) {
         const box = $('fp-update');
-        if (manual && box) renderUpdate('正在检查更新…', 'busy');
+        if (manual) {
+            if (box) renderUpdate('正在刷新更新源…', 'busy');
+            purgeCDN();
+            setTimeout(function () { _doCheck(true, box); }, PURGE_WAIT);
+            return;
+        }
+        const purged = maybePurge(5 * 60 * 1000);
+        setTimeout(function () { _doCheck(false, box); }, purged ? PURGE_WAIT : 0);
+    }
+
+    function _doCheck(manual, box) {
         fetchLatest()
             .then((txt) => {
                 const rv = extractVersion(txt);
@@ -572,21 +611,24 @@
             });
     }
 
-    // 立即更新：移除旧 UI 与样式，拉取最新脚本就地重注入。设置仍从 localStorage 读取。
+    // 立即更新：先刷新 CDN 缓存，再拉取最新脚本并就地重注入。设置仍从 localStorage 读取。
     function forceUpdate() {
         const box = $('fp-update');
-        if (box) renderUpdate('正在拉取最新版…', 'busy');
-        fetchLatest()
-            .then((code) => {
-                ['fp-panel', 'fp-mask', 'fp-done', 'fp-loading', 'fp-style'].forEach((id) => {
-                    const el = document.getElementById(id);
-                    if (el && el.parentNode) el.parentNode.removeChild(el);
-                });
-                const s = document.createElement('script');
-                s.textContent = code;
-                document.head.appendChild(s);
-            })
-            .catch(() => { if (box) renderUpdate('更新失败：网络或跨域受限 <i id="fp-update-x">×</i>', 'err'); });
+        if (box) renderUpdate('正在从 GitHub 拉取最新版…', 'busy');
+        purgeCDN();
+        setTimeout(function () {
+            fetchLatest()
+                .then((code) => {
+                    ['fp-panel', 'fp-mask', 'fp-done', 'fp-loading', 'fp-style'].forEach((id) => {
+                        const el = document.getElementById(id);
+                        if (el && el.parentNode) el.parentNode.removeChild(el);
+                    });
+                    const s = document.createElement('script');
+                    s.textContent = code;
+                    document.head.appendChild(s);
+                })
+                .catch(() => { if (box) renderUpdate('更新失败：网络或跨域受限 <i id="fp-update-x">×</i>', 'err'); });
+        }, PURGE_WAIT);
     }
 
     /* ==================================================================
