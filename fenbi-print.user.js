@@ -46,7 +46,7 @@
     const OPT_HANG = 1.25; // 选项悬挂宽度（em），够容纳 "A." / "A"
 
     const DEFAULTS = {
-        cover: false,          // 默认不加自制封面：正式试卷沿用粉笔自己的首页封底
+        cover: true,           // 默认勾选自制封面页：正式试卷也带自制封面与缓冲页
         // 署名是写死在卷子里的，面板不提供入口
         signature: '工具支持 小红书@火焰百合',
         margin: '15mm 15mm',
@@ -58,7 +58,7 @@
         shenlunMode: 'none',   // none = 不留作答区；auto = 按题目字数算；fixed = 固定高度
         shenlunSpace: 8,       // 仅在 fixed 模式下生效（cm）
         qrcode: true,
-        countdown: 8,
+        countdown: 10,
         autoPrint: true
     };
 
@@ -395,9 +395,9 @@
         <div class="fp-hint">需联网生成；取不到会自动隐藏，不影响正文</div>
     </div>
     <div class="fp-field">
-        <label class="fp-label">打印倒计时 (秒)</label>
+        <label class="fp-label">关闭页面倒计时 (秒)</label>
         <input type="number" id="fp-countdown" class="fp-input">
-        <div class="fp-hint">防止另存 PDF 未写完就关页面。填 0 可直接关闭</div>
+        <div class="fp-hint">打印完成后选「关闭页面」的自动关闭倒计时；填 0 则点击立即关闭</div>
     </div>
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
@@ -1209,13 +1209,14 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 #fp-done button{background:#cbd5e1;color:#fff;border:0;padding:10px 24px;border-radius:8px;
   font-size:14px;font-weight:700;cursor:not-allowed}
 #fp-done button.on{background:#2563eb;cursor:pointer}
+#fp-done-btns{display:flex;gap:12px;justify-content:center;margin-top:4px}
 @media print{#fp-done{display:none!important}}
 </style></head>
 <body class="pag-${opt.pagination}">
 <div id="fp-loading">正在按 A4 分页，题目较多时需要几秒…<br><span style="font-size:12px;color:#94a3b8">打印时请在设置里取消勾选「页眉和页脚」、选 A4 纸张；要存成文件就把目标选成「另存为 PDF」。</span></div>
 <div id="fp-done"><div><div class="ok">&#10003;</div>
 <h3 id="fp-done-t">正在生成文件</h3><p id="fp-done-p">另存为 PDF 需要几秒到十几秒，请稍候再关闭页面。<br>打印设置里请取消「页眉和页脚」，避免顶部出现标题/网址、底部出现日期。</p>
-<button id="fp-done-btn" disabled>正在缓冲…</button></div></div>
+<div class="fp-done-btns"><button id="fp-done-stay" disabled>留在页面</button><button id="fp-done-close" class="on" disabled>关闭页面</button></div></div></div>
 `;
 
         // ---------- 封面 ----------
@@ -1836,33 +1837,41 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   function startCountdown(){
     started = true;
     var box = document.getElementById('fp-done');
-    var btn = document.getElementById('fp-done-btn');
     var ti = document.getElementById('fp-done-t');
     var tp = document.getElementById('fp-done-p');
+    var btnStay = document.getElementById('fp-done-stay');
+    var btnClose = document.getElementById('fp-done-close');
     box.style.display = 'flex';
-    function done(){
-      ti.textContent = '打印完成！';
-      tp.textContent = '如需重打，按 P 键再次唤起打印对话框。';
-      btn.textContent = '我知道了，关闭页面';
-      // 再次提示，因为打印对话框里取消「页眉和页脚」是去掉标题/网址/日期的唯一办法
-      btn.classList.add('on');
-      btn.removeAttribute('disabled');
-    }
-    if (CD <= 0){ done(); return; }
-    var left = CD;
-    btn.textContent = '正在生成中… (' + left + 's)';
-    var timer = setInterval(function(){
-      left--;
-      if (left > 0) btn.textContent = '正在生成中… (' + left + 's)';
-      else { clearInterval(timer); done(); }
-    }, 1000);
+    ti.textContent = '打印完成！';
+    tp.textContent = '如需重打，按 P 键再次唤起打印对话框；或选择下方操作。';
+    btnStay.removeAttribute('disabled');
+    btnClose.removeAttribute('disabled');
+    btnClose.textContent = '关闭页面';
   }
 
-  document.getElementById('fp-done-btn').addEventListener('click', function(){
-    var b = document.getElementById('fp-done-btn');
+  var fpCloseTimer = null;
+  function stopCloseTimer(){ if (fpCloseTimer){ clearInterval(fpCloseTimer); fpCloseTimer = null; } }
+
+  document.getElementById('fp-done-stay').addEventListener('click', function(){
+    var b = document.getElementById('fp-done-stay');
     if (b.hasAttribute('disabled')) return;
-    window.close();
-    setTimeout(function(){ document.getElementById('fp-done').style.display = 'none'; }, 400);
+    stopCloseTimer();
+    document.getElementById('fp-done').style.display = 'none';
+  });
+
+  document.getElementById('fp-done-close').addEventListener('click', function(){
+    var b = document.getElementById('fp-done-close');
+    if (b.hasAttribute('disabled')) return;
+    // 倒计时进行中 → 立即关闭
+    if (fpCloseTimer){ stopCloseTimer(); window.close(); return; }
+    // 首次点击 → 启动 CD 秒倒计时，到时自动关闭；期间再点立即关闭
+    var left = CD > 0 ? CD : 10;
+    b.textContent = '关闭页面 (' + left + 's)';
+    fpCloseTimer = setInterval(function(){
+      left--;
+      if (left > 0){ b.textContent = '关闭页面 (' + left + 's)'; }
+      else { stopCloseTimer(); window.close(); }
+    }, 1000);
   });
 
   document.addEventListener('keydown', function(e){
