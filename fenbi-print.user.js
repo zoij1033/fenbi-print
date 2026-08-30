@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.5.2
+// @version      1.5.3
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.5.2';
+    const VERSION = '1.5.3';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
