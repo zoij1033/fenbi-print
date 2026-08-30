@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 HTML 留存。本地运行，无付费、无次数限制。
+// @version      1.5.2
+// @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
 // @grant        none
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.5';
+    const VERSION = '1.5.2';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -343,7 +343,7 @@
 
 <div class="fp-btns">
     <button id="fp-print" class="fp-btn">排版并打印</button>
-    <button id="fp-save" class="fp-btn2" title="导出为 HTML，之后可随时打开打印或另存 PDF">导出HTML</button>
+    <button id="fp-save" class="fp-btn2" title="导出为 PDF：浏览器会弹出打印对话框，目标选「另存为 PDF」即可保存">导出PDF</button>
 </div>
 
 <div class="fp-adv" id="fp-adv">
@@ -989,7 +989,11 @@
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 
-@page{size:A4;margin:${opt.margin}}
+/* 页边距放到每个 .fp-page 内部（padding），@page 外边距归零。
+   否则打印对话框若选了比脚本假设更大的边距（Chrome 默认约 20mm，
+   而脚本按 15mm 算高度），每页就会比可打印区高出一截，
+   page-break-after:always 又强制分页 → 每页后跟着一张空白页。 */
+@page{size:A4;margin:0}
 
 html{background:#e5e7eb}
 body{margin:0;padding:0;background:#fff;font-family:"SimSun","STSong","Songti SC","Noto Serif CJK SC",serif;
@@ -1022,11 +1026,12 @@ p{margin:0 0 .5em}
   font-size:8.5pt;color:#9aa3b2;letter-spacing:.5px;
   font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   max-width:52%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.fp-pfooter .fp-pg{display:block}
+.fp-pfooter .fp-pg{display:block;white-space:nowrap}
 /* 页面右下角小字：粉笔题库 */
 .fp-pfooter .fp-tag{position:absolute;right:0;top:0;height:100%;
   font-size:8.5pt;color:#9aa3b2;letter-spacing:.5px;
-  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  white-space:nowrap}
 
 @media screen{
   body{background:#e5e7eb;padding:16px 0}
@@ -1038,11 +1043,17 @@ p{margin:0 0 .5em}
 @media print{
   html,body{background:#fff}
   body{padding:0}
-  .fp-page{width:auto;height:auto;min-height:${CONTENT_H}px;padding:0;margin:0;
+  /* 每页钉死成“整张 A4（297mm）”，可视边距由内部 padding 提供。
+     这样无论用户在打印对话框里选“默认/最小/无”边距，
+     每页都正好占满一张纸，page-break-after:always 只会切出刚好的分页，
+     不会再因为「内容区高度 > 可打印高度」而多挤出空白页。 */
+  .fp-page{width:auto;height:297mm;min-height:297mm;max-height:297mm;
+    padding:${opt.margin};box-sizing:border-box;overflow:hidden;margin:0;
     box-shadow:none;page-break-after:always;break-after:page}
   .fp-page:last-child{page-break-after:auto;break-after:auto}
-  .fp-pbody{min-height:${BODY_H}px}
-  .fp-sheet{box-shadow:none;margin:0;max-width:none;min-height:0;padding:0}
+  .fp-pbody{min-height:${BODY_H}px;max-height:${BODY_H}px;overflow:hidden}
+  .fp-sheet{box-sizing:border-box;height:297mm!important;padding:${opt.margin}!important;
+    box-shadow:none;margin:0;max-width:none;min-height:0}
   #fp-flow{display:none!important}
 }
 /* 旧类名兼容，防止外部还引用 .fp-pnum */
@@ -1201,9 +1212,9 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 @media print{#fp-done{display:none!important}}
 </style></head>
 <body class="pag-${opt.pagination}">
-<div id="fp-loading">正在按 A4 分页，题目较多时需要几秒…</div>
+<div id="fp-loading">正在按 A4 分页，题目较多时需要几秒…<br><span style="font-size:12px;color:#94a3b8">打印时请在设置里取消勾选「页眉和页脚」、选 A4 纸张；要存成文件就把目标选成「另存为 PDF」。</span></div>
 <div id="fp-done"><div><div class="ok">&#10003;</div>
-<h3 id="fp-done-t">正在生成文件</h3><p id="fp-done-p">另存为 PDF 需要几秒到十几秒，请稍候再关闭页面。</p>
+<h3 id="fp-done-t">正在生成文件</h3><p id="fp-done-p">另存为 PDF 需要几秒到十几秒，请稍候再关闭页面。<br>打印设置里请取消「页眉和页脚」，避免顶部出现标题/网址、底部出现日期。</p>
 <button id="fp-done-btn" disabled>正在缓冲…</button></div></div>
 `;
 
@@ -1833,6 +1844,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       ti.textContent = '打印完成！';
       tp.textContent = '如需重打，按 P 键再次唤起打印对话框。';
       btn.textContent = '我知道了，关闭页面';
+      // 再次提示，因为打印对话框里取消「页眉和页脚」是去掉标题/网址/日期的唯一办法
       btn.classList.add('on');
       btn.removeAttribute('disabled');
     }
@@ -1871,21 +1883,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     /* ==================================================================
      * 七、输出层
      * ================================================================ */
-
-    function download(html, title) {
-        const safe = (title || '试卷').replace(/[\\/:*?"<>|\n\r\t]/g, '_').slice(0, 60);
-        const d = new Date();
-        const p = (n) => String(n).padStart(2, '0');
-        const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
-        const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${safe}_${stamp}.html`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-    }
 
     // 轮询生成页的就绪标志，避免图片没下载完就打印
     function printWhenReady(win, timeout) {
@@ -1956,22 +1953,19 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 
         try {
             const { html, opt, title } = await generate();
-            if (mode === 'save') {
-                download(html, title);
+            const win = window.open('', '_blank');
+            if (!win) {
                 hideMask();
-                alert('已保存到下载目录。\n用浏览器打开该文件 → Ctrl/Cmd + P → 目标选「另存为 PDF」即可离线使用。\n（图片来自粉笔，首次打开需联网加载）');
-            } else {
-                const win = window.open('', '_blank');
-                if (!win) {
-                    hideMask();
-                    alert('浏览器拦截了弹窗。\n请允许本站弹出窗口后重试，或改用「导出HTML」把试卷存到本地再打印。');
-                    return;
-                }
-                win.document.write(html);
-                win.document.close();
-                hideMask();
-                if (opt.autoPrint) printWhenReady(win);
+                alert('浏览器拦截了弹窗。\n请允许本站弹出窗口后重试。');
+                return;
             }
+            win.document.write(html);
+            win.document.close();
+            hideMask();
+            // 「导出 PDF」与「排版并打印」走同一条路：浏览器「打印」是唯一能保真出 PDF 的路径，
+            // 对话框里目标选「另存为 PDF」即存成文件，选真实打印机则直接打印到纸。
+            // 「排版并打印」尊重面板的「生成后自动唤起打印」开关；「导出 PDF」强制唤起。
+            if (mode === 'save' || opt.autoPrint) printWhenReady(win);
         } catch (e) {
             hideMask();
             if (e && e.message !== 'no question') {
