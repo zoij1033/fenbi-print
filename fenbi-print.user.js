@@ -92,6 +92,38 @@
             .replace(/"/g, '&quot;');
     }
 
+    /* ---------- 更新相关小工具（检查更新 / 立即更新 共用） ---------- */
+
+    // 在面板底部 #fp-update 框里显示一行状态。
+    // cls 为 '' / 'busy' / 'ok' / 'err'，分别对应 CSS 中 .fp-update 及其子类的样式；
+    // 空 cls 表示「发现新版本」提示态（带「立即更新」链接与忽略 ×）。
+    function renderUpdate(text, cls) {
+        const box = $('fp-update');
+        if (!box) return;
+        box.className = 'fp-update' + (cls ? ' ' + cls : '');
+        box.innerHTML = text;
+        box.style.display = 'flex';
+    }
+
+    // 从脚本源码里抠出版本号（const VERSION = 'x.y.z'），拿不到返回 null。
+    function extractVersion(txt) {
+        if (!txt) return null;
+        const m = txt.match(/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/);
+        return m ? m[1] : null;
+    }
+
+    // 语义化版本比较：a 新于 b 返回 >0，a 旧于 b 返回 <0，相等返回 0。
+    function cmpVer(a, b) {
+        const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+        const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+            if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+            if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+        }
+        return 0;
+    }
+
     // 量出一段文本在当前题号字体下的宽度（em，相对字号），用于在渲染前
     // 按题号实际占宽算出每题各自的悬挂列宽，让「题号.题干」间隙恒定可控。
     let _fpMeasureCtx = null;
