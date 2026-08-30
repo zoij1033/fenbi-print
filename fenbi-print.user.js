@@ -36,8 +36,8 @@
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
 
     // 检查更新：直接拉取源链接上的 fenbi-print.user.js，抽出它自带的 VERSION 与本地比对。
-    // 与书签拉取的地址保持一致（jsDelivr @main，国内稳），?t= 时间戳绕过 CDN 边缘缓存，确保拿到真最新。
-    const UPDATE_URL = 'https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';
+    // 与书签拉取的地址保持一致（GitHub main 的 raw 链接，即用户指定的源），?t= 时间戳绕过浏览器缓存，确保拿到真最新。
+    const UPDATE_URL = 'https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';
     // 旧版 version.json 托管方案已废弃：REMOTE 留空即不再联网，行为与之前一致。
     const REMOTE = '';
 
