@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.7
+// @version      1.6.8
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.7';
+    const VERSION = '1.6.8';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -1120,14 +1120,16 @@ p{margin:0 0 .5em}
 .fp-pfooter{position:relative;flex:0 0 ${PFOOTER_H}px;height:${PFOOTER_H}px;
   line-height:${PFOOTER_H}px;text-align:center;
   font-size:10pt;color:#555;font-family:"SimSun","STSong",serif}
+/* 署名：8.5pt → 7.5pt（小两号），#9aa3b2 → #adb5c0（白底对比度 2.55:1 → 2.07:1）。
+   再小或再淡打印出来就糊了，7.5pt 是激光打印机还能稳住的下限。 */
 .fp-pfooter .fp-sig{position:absolute;left:0;top:0;height:100%;
-  font-size:8.5pt;color:#9aa3b2;letter-spacing:.5px;
+  font-size:7.5pt;color:#adb5c0;letter-spacing:.5px;
   font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   max-width:52%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .fp-pfooter .fp-pg{display:block;white-space:nowrap}
-/* 页面右下角小字：粉笔题库 */
+/* 页面右下角小字：粉笔题库。与署名同步缩小减淡，否则左边轻右边重，看着不协调。 */
 .fp-pfooter .fp-tag{position:absolute;right:0;top:0;height:100%;
-  font-size:8.5pt;color:#9aa3b2;letter-spacing:.5px;
+  font-size:7.5pt;color:#adb5c0;letter-spacing:.5px;
   font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   white-space:nowrap}
 
@@ -1452,6 +1454,10 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   var RATIO = ${opt.figScale} / 100;
   if (!(RATIO > 0 && RATIO <= 1)) RATIO = 0.65;
   var CD = ${cd};
+  // 输出方式：'print' = 点「排版并打印」，'save' = 点「导出PDF」。
+  // 传入而不是事后猜 —— afterprint 只告诉你对话框关了，猜不出用户在里面选的是
+  // 打印机还是「另存为 PDF」。按钮是自己点的，这个意图只有面板那一侧才知道。
+  var OUT = ${JSON.stringify(meta.output === 'save' ? 'save' : 'print')};
 
   // 大图按比例缩小，小图不动；必须幂等，否则轮询会把图越缩越小
   function scaleFigures(){
@@ -1965,8 +1971,15 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     var box = document.getElementById('fp-done');
     var btnStay = document.getElementById('fp-done-stay');
     var btnClose = document.getElementById('fp-done-close');
-    document.getElementById('fp-done-t').textContent = '打印完成！';
-    document.getElementById('fp-done-p').textContent = '如需重打，按 P 键再次唤起打印对话框；或选择下方操作。';
+    // 点「导出PDF」进来的人是要存文件的，说「打印完成」会让人怀疑是不是存错了；
+    // 点「排版并打印」的人才是要打印。两套文案。
+    if (OUT === 'save') {
+      document.getElementById('fp-done-t').textContent = '保存成功！';
+      document.getElementById('fp-done-p').textContent = 'PDF 已保存到你在打印对话框里选的位置。没存上就按 P 键再试一次；或选择下方操作。';
+    } else {
+      document.getElementById('fp-done-t').textContent = '打印完成！';
+      document.getElementById('fp-done-p').textContent = '如需重打，按 P 键再次唤起打印对话框；或选择下方操作。';
+    }
     box.style.display = 'flex';
     btnStay.removeAttribute('disabled');
     btnClose.removeAttribute('disabled');
@@ -2049,7 +2062,9 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 
     let busy = false;
 
-    async function generate() {
+    // mode 由调用方传入：'print' = 排版并打印，'save' = 导出 PDF。
+    // 只用来决定结果页完成弹窗的文案，不影响排版本身。
+    async function generate(mode) {
         const opt = collectOptions();
         $('fp-title').value = opt.title;
 
@@ -2077,7 +2092,13 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
             throw new Error('no question');
         }
 
-        const html = buildHtml(items, opt, { mode: isShenlun ? 'shenlun' : 'xingce', questionCount });
+        // meta.mode 是题型（行测 / 申论），meta.output 是输出方式（打印 / 存 PDF）——
+        // 两个维度各用各的字段名，别再塞进同一个 mode 里。
+        const html = buildHtml(items, opt, {
+            mode: isShenlun ? 'shenlun' : 'xingce',
+            output: mode,
+            questionCount,
+        });
         const matCount = items.filter((i) => i.kind === 'material').length;
         setStatus(`共 <b>${questionCount}</b> 题${matCount ? `，<b>${matCount}</b> 份材料` : ''}`);
 
@@ -2093,7 +2114,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         pb.textContent = '处理中…';
 
         try {
-            const { html, opt, title } = await generate();
+            const { html, opt, title } = await generate(mode);
             const win = window.open('', '_blank');
             if (!win) {
                 hideMask();
