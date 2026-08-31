@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.7.2
+// @version      1.7.3
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.7.2';
+    const VERSION = '1.7.3';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -50,7 +50,7 @@
     const OPT_HANG = 1.25; // 选项悬挂宽度（em），够容纳 "A." / "A"
 
     const DEFAULTS = {
-        cover: true,           // 默认勾选自制封面页：正式试卷也带自制封面与缓冲页
+        cover: true,           // 默认勾选：打印封面页（含缓冲页）
         // 署名是写死在卷子里的，面板不提供入口
         signature: '工具支持 小红书@火焰百合',
         margin: '15mm 15mm',
@@ -309,60 +309,60 @@
 
     function injectStyle() {
         const css = `
-#fp-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);z-index:9999990;display:none;align-items:center;justify-content:center;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-#fp-mask-box{background:#fff;border-radius:14px;padding:28px 34px;min-width:280px;max-width:380px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.28)}
-.fp-spin{width:38px;height:38px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:fp-rot .8s linear infinite;margin:0 auto 14px}
+#fp-mask{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);z-index:9999990;display:none;align-items:center;justify-content:center;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+#fp-mask-box{background:#181b21;border:1px solid #2e333d;border-radius:10px;padding:28px 34px;min-width:280px;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.fp-spin{width:38px;height:38px;border:3px solid #2e333d;border-top-color:#4dd0e1;border-radius:50%;animation:fp-rot .8s linear infinite;margin:0 auto 14px}
 @keyframes fp-rot{to{transform:rotate(360deg)}}
-#fp-mask-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px}
-#fp-mask-sub{font-size:12px;color:#64748b;line-height:1.6;white-space:pre-line}
+#fp-mask-title{font-size:15px;font-weight:700;color:#e6eaf0;margin-bottom:6px}
+#fp-mask-sub{font-size:12px;color:#8b95a3;line-height:1.6;white-space:pre-line}
 
-.fp-panel{position:fixed;top:110px;right:20px;width:308px;background:#fff;border:1px solid #e6eaf0;border-radius:18px;box-shadow:0 18px 50px rgba(31,76,140,.16);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1a2333;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
-.fp-scroll{flex:1 1 auto;min-height:0;margin:14px 0;padding:0 16px;overflow-y:auto;scrollbar-gutter:stable both-edges}
-.fp-scroll::-webkit-scrollbar{width:6px}
+.fp-panel{position:fixed;top:110px;right:20px;width:302px;background:#181b21;border:1px solid #2e333d;border-radius:10px;box-shadow:0 20px 50px rgba(0,0,0,.55);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#d7dce3;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
+.fp-scroll{flex:1 1 auto;min-height:0;margin:20px 0;padding:0 16px;overflow-y:auto;scrollbar-gutter:stable both-edges}
+.fp-scroll::-webkit-scrollbar{width:8px}
 .fp-scroll::-webkit-scrollbar-track{background:transparent}
-.fp-scroll::-webkit-scrollbar-thumb{background:#b9d4f7;border-radius:3px}
-@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#b9d4f7 transparent}}
-.fp-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:linear-gradient(135deg,#3b8bee,#2f7fe0);color:#fff;cursor:move;user-select:none}
+.fp-scroll::-webkit-scrollbar-thumb{background:#333a45;border-radius:4px}
+.fp-scroll::-webkit-scrollbar-thumb:hover{background:#414a58}
+@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#333a45 transparent}}
+.fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;cursor:move;user-select:none;border-bottom:1px solid #2e333d;padding-bottom:11px}
 .fp-brand{display:flex;align-items:center;gap:8px}
 .fp-emoji{font-size:18px;line-height:1}
-.fp-name{font-size:15px;font-weight:700;color:#fff;letter-spacing:.5px}
-.fp-mini{font-size:12px;color:rgba(255,255,255,.92);cursor:pointer;padding:4px 8px;border-radius:8px;user-select:none}
-.fp-mini:hover{background:rgba(255,255,255,.18)}
-.fp-x{font-size:18px;color:rgba(255,255,255,.85);cursor:pointer;padding:2px 7px;border-radius:8px;line-height:1}
-.fp-x:hover{color:#fff;background:rgba(255,255,255,.18)}
-.fp-field{margin-bottom:11px}
-.fp-label{display:block;font-size:12px;font-weight:600;color:#6b7787;margin-bottom:5px}
-.fp-input,.fp-select{width:100%;padding:9px 11px;box-sizing:border-box;border:1px solid #dbe3ee;border-radius:10px;font-size:13px;color:#1a2333;background:#fbfcfe;outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
-.fp-input:focus,.fp-select:focus{border-color:#2f7fe0;box-shadow:0 0 0 3px rgba(47,127,224,.14);background:#fff}
-.fp-check{display:flex;align-items:center;font-size:13px;color:#37414f;cursor:pointer;gap:8px;user-select:none}
-.fp-check input{width:16px;height:16px;accent-color:#2f7fe0;margin:0}
-.fp-hint{font-size:11px;color:#9aa6b4;margin-top:4px;line-height:1.5}
-.fp-stat{font-size:12px;color:#6b7787;margin-bottom:11px;line-height:1.6;min-height:18px}
-.fp-stat b{color:#2f7fe0}
-.fp-btns{display:flex;gap:9px;margin-bottom:4px}
-.fp-btn{flex:2;padding:11px;background:linear-gradient(135deg,#3b8bee,#2f7fe0);color:#fff;border:0;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;box-shadow:0 6px 16px rgba(47,127,224,.28)}
-.fp-btn:hover{filter:brightness(1.05)}
-.fp-btn:disabled{filter:grayscale(.4);opacity:.7;cursor:wait}
-.fp-btn2{flex:1;padding:11px;background:#eef4fc;color:#2f7fe0;border:1px solid #d5e6fb;border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
-.fp-btn2:hover{background:#e3eefe}
-.fp-adv{display:none;margin-top:13px;padding:13px;border-radius:14px;background:#f5f9ff;border:1px solid #e3eefb}
-.fp-sec{margin-bottom:12px}
-.fp-sec:last-child{margin-bottom:0}
-.fp-sec-t{font-size:11px;font-weight:700;color:#2f7fe0;letter-spacing:1px;margin:0 0 8px;padding-left:8px;border-left:3px solid #2f7fe0}
-.fp-row{display:flex;gap:9px}
+.fp-name{font-size:15px;font-weight:700;color:#e6eaf0;letter-spacing:.3px}
+.fp-mini{font-size:12px;color:#4dd0e1;cursor:pointer;padding:4px 9px;border-radius:6px;user-select:none;background:#22262e}
+.fp-mini:hover{background:#2b323d;color:#6fe0ee}
+.fp-x{font-size:18px;color:#6b7583;cursor:pointer;padding:2px 7px;border-radius:6px;line-height:1}
+.fp-x:hover{color:#e6eaf0;background:#2b323d}
+.fp-field{margin-bottom:12px}
+.fp-label{display:block;font-size:11.5px;font-weight:600;color:#8b95a3;margin-bottom:5px;letter-spacing:.4px}
+.fp-input,.fp-select{width:100%;padding:8px 10px;box-sizing:border-box;border:1px solid #3a4049;border-radius:6px;font-size:13px;color:#e6eaf0;background:#22262e;outline:none;font-family:inherit}
+.fp-input::placeholder{color:#5c6674}
+.fp-input:focus,.fp-select:focus{border-color:#4dd0e1;box-shadow:0 0 0 3px rgba(77,208,225,.15)}
+.fp-select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8b95a3 50%),linear-gradient(135deg,#8b95a3 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:28px}
+.fp-check{display:flex;align-items:center;font-size:13px;color:#d7dce3;cursor:pointer;gap:8px;user-select:none}
+.fp-check input{width:15px;height:15px;accent-color:#4dd0e1;margin:0;background:#22262e}
+.fp-hint{font-size:11px;color:#6b7583;margin-top:4px;line-height:1.5}
+.fp-stat{font-size:12px;color:#8b95a3;margin-bottom:11px;line-height:1.6;min-height:18px}
+.fp-stat b{color:#4dd0e1}
+.fp-btns{display:flex;gap:8px;margin-bottom:4px}
+.fp-btn{flex:2;padding:11px;background:#2F7FE0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;transition:background .15s}
+.fp-btn:hover{background:#4f9af0}
+.fp-btn:active{transform:translateY(1px)}
+.fp-btn:disabled{background:#3a4049;color:#6b7583;cursor:wait}
+.fp-btn2{flex:1;padding:11px;background:#252a33;color:#a8b2bf;border:1px solid #3a4049;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:background .15s}
+.fp-btn2:hover{background:#2f353f;color:#d7dce3}
+.fp-adv{display:none;margin-top:14px;padding-top:13px;border-top:1px dashed #333a45}
+.fp-row{display:flex;gap:10px}
 .fp-row>.fp-field{flex:1}
-.fp-foot{margin-top:11px;font-size:11px;color:#c2ccd8;text-align:center}
-.fp-contact{display:none;margin-top:12px;margin-bottom:8px;font-size:11px;color:#2f7fe0;text-align:center;text-decoration:none;cursor:pointer}
+.fp-foot{margin-top:12px;padding-top:9px;font-size:11px;color:#5c6674;text-align:center;letter-spacing:1px;border-top:1px solid #2e333d}
+.fp-contact{display:none;margin-top:12px;margin-bottom:8px;font-size:11px;color:#4dd0e1;text-align:center;text-decoration:none;cursor:pointer}
 .fp-contact:hover{text-decoration:underline}
-.fp-update{display:none;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;
-  background:#fff8e6;border:1px solid #f4e2a8;color:#8a6300;font-size:12px;line-height:1.5}
-.fp-update a{color:#2f7fe0;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
-.fp-update i{margin-left:auto;font-style:normal;cursor:pointer;color:#a9791a;padding:0 4px;flex-shrink:0}
-.fp-update.ok{background:#eefaf1;border-color:#bfe9cd;color:#1d7a3a}
+.fp-update{display:none;align-items:center;gap:8px;margin-top:10px;padding:9px 11px;border-radius:6px;background:#1f2731;border:1px solid #3a4049;color:#a8b2bf;font-size:12px;line-height:1.5}
+.fp-update a{color:#4dd0e1;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
+.fp-update i{margin-left:auto;font-style:normal;cursor:pointer;color:#8b95a3;padding:0 4px;flex-shrink:0}
+.fp-update.ok{background:#16261c;border-color:#2f5d3c;color:#7ee2a8}
 .fp-update.ok a{display:none}
-.fp-update.busy{background:#f4f8fd;border-color:#dbe3ee;color:#4a5a6a}
+.fp-update.busy{background:#1f2731;border-color:#3a4049;color:#8b95a3}
 .fp-update.busy a,.fp-update.busy i{display:none}
-.fp-update.err{background:#fdf0f0;border-color:#f6cccc;color:#a12424}
+.fp-update.err{background:#2b1a1a;border-color:#6b3030;color:#f0a0a0}
 .fp-update.err a{display:none}
 `;
         const el = document.createElement('style');
@@ -402,10 +402,8 @@
 </div>
 
 <div class="fp-adv" id="fp-adv">
-  <div class="fp-sec">
-    <div class="fp-sec-t">版面外观</div>
-    <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-cover"> 附自制封面页（含缓冲页）</label>
-        <div class="fp-hint">默认关闭：正式试卷沿用粉笔自己的首页封底，只在做示意页 / 预览演示时才需要勾上</div>
+    <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-cover" checked> 打印封面页</label>
+        <div class="fp-hint">默认勾选</div>
     </div>
     <div class="fp-field">
         <label class="fp-label">页边距</label>
@@ -420,9 +418,6 @@
         <div class="fp-field"><label class="fp-label">行距</label><input type="number" id="fp-lineHeight" step="0.05" class="fp-input"></div>
     </div>
     <div class="fp-field"><label class="fp-label">题目间距 (px)</label><input type="number" id="fp-qSpacing" class="fp-input"></div>
-  </div>
-  <div class="fp-sec">
-    <div class="fp-sec-t">排版规则</div>
     <div class="fp-field">
         <label class="fp-label">换页方式</label>
         <select id="fp-pagination" class="fp-select">
@@ -454,9 +449,6 @@
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-qrcode"> 末页附对答案二维码</label>
         <div class="fp-hint">需联网生成；取不到会自动隐藏，不影响正文</div>
     </div>
-  </div>
-  <div class="fp-sec">
-    <div class="fp-sec-t">导出与更新</div>
     <div class="fp-field">
         <label class="fp-label">关闭页面倒计时 (秒)</label>
         <input type="number" id="fp-countdown" class="fp-input">
@@ -465,7 +457,6 @@
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
     <button id="fp-check" class="fp-btn2" style="width:100%;margin-top:8px">检查更新</button>
-  </div>
 </div>
 
 <div class="fp-update" id="fp-update"></div>
