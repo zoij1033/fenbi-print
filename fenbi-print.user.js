@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.7.3
+// @version      1.7.4
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -317,12 +317,11 @@
 #fp-mask-sub{font-size:12px;color:#8b95a3;line-height:1.6;white-space:pre-line}
 
 .fp-panel{position:fixed;top:110px;right:20px;width:302px;background:#181b21;border:1px solid #2e333d;border-radius:10px;box-shadow:0 20px 50px rgba(0,0,0,.55);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#d7dce3;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
-.fp-scroll{flex:1 1 auto;min-height:0;margin:20px 0;padding:0 16px;overflow-y:auto;scrollbar-gutter:stable both-edges}
+.fp-scroll{flex:1 1 auto;min-height:0;margin:20px 0;padding:0 16px;overflow-y:auto;scrollbar-gutter:stable both-edges;scrollbar-width:thin;scrollbar-color:#333a45 transparent}
 .fp-scroll::-webkit-scrollbar{width:8px}
 .fp-scroll::-webkit-scrollbar-track{background:transparent}
 .fp-scroll::-webkit-scrollbar-thumb{background:#333a45;border-radius:4px}
 .fp-scroll::-webkit-scrollbar-thumb:hover{background:#414a58}
-@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#333a45 transparent}}
 .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;cursor:move;user-select:none;border-bottom:1px solid #2e333d;padding-bottom:11px}
 .fp-brand{display:flex;align-items:center;gap:8px}
 .fp-emoji{font-size:18px;line-height:1}
