@@ -327,8 +327,8 @@
 .fp-brand{display:flex;align-items:center;gap:8px}
 .fp-emoji{font-size:18px;line-height:1}
 .fp-name{font-size:15px;font-weight:700;color:#e6eaf0;letter-spacing:.3px}
-.fp-mini{font-size:12px;color:#4dd0e1;cursor:pointer;padding:4px 9px;border-radius:6px;user-select:none;background:#22262e}
-.fp-mini:hover{background:#2b323d;color:#6fe0ee}
+.fp-mini{font-size:12px;color:#648CFC;cursor:pointer;padding:4px 9px;border-radius:6px;user-select:none;background:#22262e}
+.fp-mini:hover{background:#2b323d;color:#8aa6fd}
 .fp-x{font-size:18px;color:#6b7583;cursor:pointer;padding:2px 7px;border-radius:6px;line-height:1}
 .fp-x:hover{color:#e6eaf0;background:#2b323d}
 .fp-field{margin-bottom:12px}
@@ -338,7 +338,8 @@
 .fp-input:focus,.fp-select:focus{border-color:#4dd0e1;box-shadow:0 0 0 3px rgba(77,208,225,.15)}
 .fp-select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8b95a3 50%),linear-gradient(135deg,#8b95a3 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:28px}
 .fp-check{display:flex;align-items:center;font-size:13px;color:#d7dce3;cursor:pointer;gap:8px;user-select:none}
-.fp-check input{width:15px;height:15px;accent-color:#4dd0e1;margin:0;background:#22262e}
+.fp-check input{width:15px;height:15px;accent-color:#648CFC;margin:0;background:#22262e}
+.fp-input[type=number]::-webkit-inner-spin-button,.fp-input[type=number]::-webkit-outer-spin-button{color:#648CFC;opacity:1}
 .fp-hint{font-size:11px;color:#6b7583;margin-top:4px;line-height:1.5}
 .fp-stat{font-size:12px;color:#8b95a3;margin-bottom:11px;line-height:1.6;min-height:18px}
 .fp-stat b{color:#4dd0e1}
@@ -408,9 +409,9 @@
     <div class="fp-field">
         <label class="fp-label">页边距</label>
         <select id="fp-margin" class="fp-select">
-            <option value="25mm 20mm">标准</option>
-            <option value="15mm 15mm">窄边（推荐）</option>
-            <option value="10mm 10mm">极窄</option>
+            <option value="25mm 20mm">宽松</option>
+            <option value="15mm 15mm">标准</option>
+            <option value="10mm 10mm">紧凑</option>
         </select>
     </div>
     <div class="fp-row">
