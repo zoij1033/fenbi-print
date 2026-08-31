@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.4
+// @version      1.6.7
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.4';
+    const VERSION = '1.6.7';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -316,9 +316,12 @@
 #fp-mask-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px}
 #fp-mask-sub{font-size:12px;color:#64748b;line-height:1.6;white-space:pre-line}
 
-.fp-panel{position:fixed;top:110px;right:20px;width:290px;background:#fff;border:1px solid #eef0f4;border-radius:16px;box-shadow:0 16px 48px rgba(15,23,42,.14);padding:15px;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f2937;box-sizing:border-box;max-height:calc(100vh - 140px);overflow-y:auto}
-.fp-panel::-webkit-scrollbar{width:6px}
-.fp-panel::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.fp-panel{position:fixed;top:110px;right:20px;width:302px;background:#fff;border:1px solid #eef0f4;border-radius:16px;box-shadow:0 16px 48px rgba(15,23,42,.14);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f2937;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
+.fp-scroll{flex:1 1 auto;min-height:0;margin:24px 0;padding:0 15px;overflow-y:auto;scrollbar-gutter:stable both-edges}
+.fp-scroll::-webkit-scrollbar{width:6px}
+.fp-scroll::-webkit-scrollbar-track{background:transparent}
+.fp-scroll::-webkit-scrollbar-thumb{background:#c3d2e8;border-radius:3px}
+@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#c3d2e8 transparent}}
 .fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:move;user-select:none}
 .fp-brand{display:flex;align-items:center;gap:8px}
 .fp-dot{width:9px;height:9px;border-radius:3px;background:linear-gradient(135deg,#2563eb,#7c3aed)}
@@ -375,6 +378,7 @@
         panel.className = 'fp-panel';
         panel.id = 'fp-panel';
         panel.innerHTML = `
+<div class="fp-scroll">
 <div class="fp-head" id="fp-drag">
     <div class="fp-brand"><span class="fp-dot"></span><span class="fp-name">试卷排版打印</span></div>
     <div><span class="fp-mini" id="fp-toggle">设置 ▾</span><span class="fp-x" id="fp-close" title="关闭（刷新页面重现）">×</span></div>
@@ -382,7 +386,10 @@
 
 <div class="fp-field">
     <label class="fp-label">试卷标题</label>
-    <input type="text" id="fp-title" value="${TITLE_PLACEHOLDER}" class="fp-input">
+    <!-- 占位提示走 placeholder 而不是 value：value 一留空，生成时就会实时去页面读真实
+         试卷名（见 opt.title 的取值）。早先把占位文字放在 value 里，用户手快在标题回填
+         之前就点生成，卷子封面上会直接印出「正在读取当前试卷…」。 -->
+    <input type="text" id="fp-title" placeholder="${TITLE_PLACEHOLDER}" class="fp-input">
 </div>
 <div class="fp-stat" id="fp-stat"></div>
 
@@ -442,7 +449,7 @@
     <div class="fp-field">
         <label class="fp-label">关闭页面倒计时 (秒)</label>
         <input type="number" id="fp-countdown" class="fp-input">
-        <div class="fp-hint">打印完成后选「关闭页面」的自动关闭倒计时；填 0 则点击立即关闭</div>
+        <div class="fp-hint">打印对话框一关闭就开始倒数，到时自动关闭页面；期间点「留在页面」可取消，填 0 则不自动关闭</div>
     </div>
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
@@ -451,7 +458,8 @@
 
 <div class="fp-update" id="fp-update"></div>
     <a class="fp-contact" id="fp-contact" href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a>
-<div class="fp-foot">v${VERSION}</div>`;
+<div class="fp-foot">v${VERSION}</div>
+</div>`;
         document.body.appendChild(panel);
         return { panel, mask };
     }
@@ -1296,10 +1304,11 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
 #fp-done h3{margin:0 0 8px;font-size:18px;color:#0f172a}
 #fp-done p{margin:0 0 18px;font-size:13px;color:#64748b;line-height:1.6}
-#fp-done button{background:#cbd5e1;color:#fff;border:0;padding:10px 24px;border-radius:8px;
-  font-size:14px;font-weight:700;cursor:not-allowed}
+#fp-done button{background:#94a3b8;color:#fff;border:0;padding:10px 24px;border-radius:8px;
+  font-size:14px;font-weight:700;cursor:pointer;min-width:141px}
+#fp-done button[disabled]{cursor:not-allowed}
 #fp-done button.on{background:#2563eb;cursor:pointer}
-#fp-done-btns{display:flex;gap:12px;justify-content:center;margin-top:4px}
+.fp-done-btns{display:flex;gap:12px;justify-content:center;margin-top:4px}
 @media print{#fp-done{display:none!important}}
 </style></head>
 <body class="pag-${opt.pagination}">
@@ -1538,11 +1547,29 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                  fig: meta.fig, grid: meta.grid, mid: meta.mid, own: meta.own,
                  hang: meta.hang, ohang: meta.ohang });
     }
+    // 容器上是否直接挂着文字（不是包在子元素里的那种）。
+    // 粉笔的题干/材料大量是「<div>……最恰当的一项是：<span>____</span>。</div>」
+    // 这种混排结构：文字直接挂在容器上，行内元素夹在中间。
+    function hasDirectText(node){
+      var ns = node.childNodes;
+      for (var i = 0; i < ns.length; i++){
+        var n = ns[i];
+        // 纯缩进换行的空白不算内容
+        if (n.nodeType === 3 && n.textContent.replace(/[\s\u3000]/g, '').length) return true;
+      }
+      return false;
+    }
+
     function drill(node, meta, depth){
       if (depth > 6){ push(node, meta); return; }
       var kids = node.children;
       // 只有「纯容器」才往下钻：里面掺了表格/图片这类不能拆的东西就整块收下
       if (kids.length && WRAP.test(node.tagName) && !node.querySelector('table,img,svg,canvas')){
+        // 混排容器（文字与行内元素夹在一起）不能再往下钻 ——
+        // 只递归元素子节点的话，挂在容器上的那截文字会被整个丢掉；
+        // 拆成「文本块 + 元素块」也不行，会打断行内流，把一句话劈成两行。
+        // 整块收下最保真，代价只是这一块不能跨页续排。
+        if (hasDirectText(node)){ push(node, meta); return; }
         for (var t = 0; t < kids.length; t++) drill(kids[t], meta, depth + 1);
         return;
       }
@@ -1559,6 +1586,12 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       // 整块含表格则整体保留（表格不能拆）
       if (node.querySelector && node.querySelector('table')){ push(node, meta); return; }
       var kids = node.children;
+      // 兜底一：材料正文常常不是 <p>，而是直接包在 div.content / .material-content 里。
+      // 这种「只有文本、没有元素子节点」的叶子容器必须整块收下 ——
+      // 少了这一步，递归到最内层时一个原子都不产生，整段材料会在分页环节凭空消失。
+      // 兜底二：文字与子元素混排的容器（<div>说明文字<p>段落</p></div>）同样整块收下，
+      // 否则只递归元素子节点，容器上那截说明文字就没了。
+      if (!kids.length || hasDirectText(node)){ push(node, meta); return; }
       for (var c = 0; c < kids.length; c++) collectMat(kids[c], meta);
     }
 
@@ -1920,52 +1953,61 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   else window.addEventListener('load', waitReady);
   setTimeout(function(){ window.__fpReady = true; }, 18000);
 
-  var printed = false, started = false;
-  window.addEventListener('afterprint', function(){ printed = true; });
-  window.addEventListener('focus', function(){ if (printed && !started) startCountdown(); });
-
-  function startCountdown(){
-    started = true;
-    var box = document.getElementById('fp-done');
-    var ti = document.getElementById('fp-done-t');
-    var tp = document.getElementById('fp-done-p');
-    var btnStay = document.getElementById('fp-done-stay');
-    var btnClose = document.getElementById('fp-done-close');
-    box.style.display = 'flex';
-    ti.textContent = '打印完成！';
-    tp.textContent = '如需重打，按 P 键再次唤起打印对话框；或选择下方操作。';
-    btnStay.removeAttribute('disabled');
-    btnClose.removeAttribute('disabled');
-    btnClose.textContent = '关闭页面';
-  }
-
-  var fpCloseTimer = null;
+  var printed = false, shown = false, fpCloseTimer = null;
   function stopCloseTimer(){ if (fpCloseTimer){ clearInterval(fpCloseTimer); fpCloseTimer = null; } }
 
-  document.getElementById('fp-done-stay').addEventListener('click', function(){
-    var b = document.getElementById('fp-done-stay');
-    if (b.hasAttribute('disabled')) return;
+  // 打印对话框一关就弹「打印完成」并立刻起倒计时；倒计时期间点任一按钮都能立即生效
+  window.addEventListener('afterprint', function(){ printed = true; showDone(); });
+  // 兜底：个别浏览器 afterprint 不触发，靠窗口重新拿到焦点补一次（只在从未弹出过时生效）
+  window.addEventListener('focus', function(){ if (printed && !shown) showDone(); });
+
+  function showDone(){
+    var box = document.getElementById('fp-done');
+    var btnStay = document.getElementById('fp-done-stay');
+    var btnClose = document.getElementById('fp-done-close');
+    document.getElementById('fp-done-t').textContent = '打印完成！';
+    document.getElementById('fp-done-p').textContent = '如需重打，按 P 键再次唤起打印对话框；或选择下方操作。';
+    box.style.display = 'flex';
+    btnStay.removeAttribute('disabled');
+    btnClose.removeAttribute('disabled');
+    shown = true;
+    startCloseTimer(btnClose);
+  }
+
+  // CD 为 0 = 不自动关闭，只留按钮给手动点；否则从 CD 秒起倒数，归零则关页面
+  function startCloseTimer(btn){
     stopCloseTimer();
+    var left = CD > 0 ? Math.round(CD) : 0;
+    if (!left){ btn.textContent = '关闭页面'; return; }
+    btn.textContent = '关闭页面 (' + left + 's)';
+    fpCloseTimer = setInterval(function(){
+      left--;
+      if (left > 0) btn.textContent = '关闭页面 (' + left + 's)';
+      else { stopCloseTimer(); window.close(); }
+    }, 1000);
+  }
+
+  // 隐藏弹窗前必须先掐掉倒计时，否则页面会在用户以为已经取消之后被悄悄关掉
+  function hideDone(){
+    stopCloseTimer();
+    var b = document.getElementById('fp-done-close');
+    if (b) b.textContent = '关闭页面';
     document.getElementById('fp-done').style.display = 'none';
+  }
+
+  document.getElementById('fp-done-stay').addEventListener('click', function(){
+    if (this.hasAttribute('disabled')) return;
+    hideDone();
   });
 
   document.getElementById('fp-done-close').addEventListener('click', function(){
-    var b = document.getElementById('fp-done-close');
-    if (b.hasAttribute('disabled')) return;
-    // 倒计时进行中 → 立即关闭
-    if (fpCloseTimer){ stopCloseTimer(); window.close(); return; }
-    // 首次点击 → 启动 CD 秒倒计时，到时自动关闭；期间再点立即关闭
-    var left = CD > 0 ? CD : 10;
-    b.textContent = '关闭页面 (' + left + 's)';
-    fpCloseTimer = setInterval(function(){
-      left--;
-      if (left > 0){ b.textContent = '关闭页面 (' + left + 's)'; }
-      else { stopCloseTimer(); window.close(); }
-    }, 1000);
+    if (this.hasAttribute('disabled')) return;
+    stopCloseTimer();
+    window.close();
   });
 
   document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape'){ document.getElementById('fp-done').style.display = 'none'; }
+    if (e.key === 'Escape'){ hideDone(); }
     else if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey){
       var t = e.target;
       if (t && (/INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable)) return;
@@ -2089,10 +2131,22 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     syncShenlunUI();
     checkUpdate();
 
-    setTimeout(() => {
+    // 把真实试卷名回填到面板：不能用固定延迟。
+    // 试卷名是 Angular 异步渲染的，写死 900ms 在慢机器／弱网上会跑空，
+    // 于是 readPaperTitle() 退到 document.title（粉笔的静态标题就是「粉笔题库」），
+    // 卷子封面上会印出一个毫无意义的「粉笔题库」。改成轮询，读到为止。
+    (function pollTitle(deadline) {
         const el = $('fp-title');
-        if (el && (!el.value || el.value === TITLE_PLACEHOLDER)) el.value = readPaperTitle();
-    }, 900);
+        if (!el) return;
+        // 用户已经改过或已回填过，不再动它
+        if (el.value.trim() && el.value !== TITLE_PLACEHOLDER) return;
+        if (document.querySelector('.header-title, .paper-name, .header-center .title')) {
+            el.value = readPaperTitle();
+            return;
+        }
+        if (Date.now() >= deadline) { el.value = readPaperTitle(); return; }
+        setTimeout(() => pollTitle(deadline), 400);
+    })(Date.now() + 10000);
 
     console.log('%c[试卷排版打印] v' + VERSION + ' 已就绪', 'color:#16a34a;font-weight:bold');
 })();
