@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.7.1
+// @version      1.7.2
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.7.1';
+    const VERSION = '1.7.2';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -316,50 +316,53 @@
 #fp-mask-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px}
 #fp-mask-sub{font-size:12px;color:#64748b;line-height:1.6;white-space:pre-line}
 
-.fp-panel{position:fixed;top:110px;right:20px;width:302px;background:#fff;border:1px solid #eef0f4;border-radius:16px;box-shadow:0 16px 48px rgba(15,23,42,.14);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1f2937;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
-.fp-scroll{flex:1 1 auto;min-height:0;margin:24px 0;padding:0 15px;overflow-y:auto;scrollbar-gutter:stable both-edges}
+.fp-panel{position:fixed;top:110px;right:20px;width:308px;background:#fff;border:1px solid #e6eaf0;border-radius:18px;box-shadow:0 18px 50px rgba(31,76,140,.16);padding:0;z-index:9999989;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1a2333;box-sizing:border-box;max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column}
+.fp-scroll{flex:1 1 auto;min-height:0;margin:14px 0;padding:0 16px;overflow-y:auto;scrollbar-gutter:stable both-edges}
 .fp-scroll::-webkit-scrollbar{width:6px}
 .fp-scroll::-webkit-scrollbar-track{background:transparent}
-.fp-scroll::-webkit-scrollbar-thumb{background:#c3d2e8;border-radius:3px}
-@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#c3d2e8 transparent}}
-.fp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:move;user-select:none}
+.fp-scroll::-webkit-scrollbar-thumb{background:#b9d4f7;border-radius:3px}
+@supports not selector(::-webkit-scrollbar){.fp-scroll{scrollbar-width:thin;scrollbar-color:#b9d4f7 transparent}}
+.fp-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:linear-gradient(135deg,#3b8bee,#2f7fe0);color:#fff;cursor:move;user-select:none}
 .fp-brand{display:flex;align-items:center;gap:8px}
-.fp-dot{width:9px;height:9px;border-radius:3px;background:linear-gradient(135deg,#2563eb,#7c3aed)}
-.fp-name{font-size:15px;font-weight:700;color:#0f172a}
-.fp-mini{font-size:12px;color:#2563eb;cursor:pointer;padding:4px 8px;border-radius:8px;user-select:none}
-.fp-mini:hover{background:#eff6ff}
-.fp-x{font-size:18px;color:#94a3b8;cursor:pointer;padding:2px 7px;border-radius:8px;line-height:1}
-.fp-x:hover{color:#0f172a;background:#f1f5f9}
+.fp-emoji{font-size:18px;line-height:1}
+.fp-name{font-size:15px;font-weight:700;color:#fff;letter-spacing:.5px}
+.fp-mini{font-size:12px;color:rgba(255,255,255,.92);cursor:pointer;padding:4px 8px;border-radius:8px;user-select:none}
+.fp-mini:hover{background:rgba(255,255,255,.18)}
+.fp-x{font-size:18px;color:rgba(255,255,255,.85);cursor:pointer;padding:2px 7px;border-radius:8px;line-height:1}
+.fp-x:hover{color:#fff;background:rgba(255,255,255,.18)}
 .fp-field{margin-bottom:11px}
-.fp-label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px}
-.fp-input,.fp-select{width:100%;padding:8px 11px;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;font-size:13px;color:#0f172a;background:#fff;outline:none;font-family:inherit}
-.fp-input:focus,.fp-select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
-.fp-check{display:flex;align-items:center;font-size:13px;color:#334155;cursor:pointer;gap:8px;user-select:none}
-.fp-check input{width:15px;height:15px;accent-color:#2563eb;margin:0}
-.fp-hint{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.45}
-.fp-stat{font-size:12px;color:#64748b;margin-bottom:11px;line-height:1.6;min-height:18px}
-.fp-stat b{color:#16a34a}
-.fp-btns{display:flex;gap:8px;margin-bottom:4px}
-.fp-btn{flex:2;padding:11px;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:0;border-radius:11px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;box-shadow:0 6px 16px rgba(37,99,235,.25)}
-.fp-btn:hover{filter:brightness(1.06)}
-.fp-btn:disabled{filter:grayscale(1);opacity:.65;cursor:wait}
-.fp-btn2{flex:1;padding:11px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
-.fp-btn2:hover{background:#e2e8f0}
-.fp-adv{display:none;margin-top:13px;padding-top:13px;border-top:1px dashed #e2e8f0}
-.fp-row{display:flex;gap:8px}
+.fp-label{display:block;font-size:12px;font-weight:600;color:#6b7787;margin-bottom:5px}
+.fp-input,.fp-select{width:100%;padding:9px 11px;box-sizing:border-box;border:1px solid #dbe3ee;border-radius:10px;font-size:13px;color:#1a2333;background:#fbfcfe;outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.fp-input:focus,.fp-select:focus{border-color:#2f7fe0;box-shadow:0 0 0 3px rgba(47,127,224,.14);background:#fff}
+.fp-check{display:flex;align-items:center;font-size:13px;color:#37414f;cursor:pointer;gap:8px;user-select:none}
+.fp-check input{width:16px;height:16px;accent-color:#2f7fe0;margin:0}
+.fp-hint{font-size:11px;color:#9aa6b4;margin-top:4px;line-height:1.5}
+.fp-stat{font-size:12px;color:#6b7787;margin-bottom:11px;line-height:1.6;min-height:18px}
+.fp-stat b{color:#2f7fe0}
+.fp-btns{display:flex;gap:9px;margin-bottom:4px}
+.fp-btn{flex:2;padding:11px;background:linear-gradient(135deg,#3b8bee,#2f7fe0);color:#fff;border:0;border-radius:12px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;box-shadow:0 6px 16px rgba(47,127,224,.28)}
+.fp-btn:hover{filter:brightness(1.05)}
+.fp-btn:disabled{filter:grayscale(.4);opacity:.7;cursor:wait}
+.fp-btn2{flex:1;padding:11px;background:#eef4fc;color:#2f7fe0;border:1px solid #d5e6fb;border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}
+.fp-btn2:hover{background:#e3eefe}
+.fp-adv{display:none;margin-top:13px;padding:13px;border-radius:14px;background:#f5f9ff;border:1px solid #e3eefb}
+.fp-sec{margin-bottom:12px}
+.fp-sec:last-child{margin-bottom:0}
+.fp-sec-t{font-size:11px;font-weight:700;color:#2f7fe0;letter-spacing:1px;margin:0 0 8px;padding-left:8px;border-left:3px solid #2f7fe0}
+.fp-row{display:flex;gap:9px}
 .fp-row>.fp-field{flex:1}
-.fp-foot{margin-top:11px;font-size:11px;color:#cbd5e1;text-align:center}
-.fp-contact{display:none;margin-top:12px;margin-bottom:8px;font-size:11px;color:#2563eb;text-align:center;text-decoration:none;cursor:pointer}
+.fp-foot{margin-top:11px;font-size:11px;color:#c2ccd8;text-align:center}
+.fp-contact{display:none;margin-top:12px;margin-bottom:8px;font-size:11px;color:#2f7fe0;text-align:center;text-decoration:none;cursor:pointer}
 .fp-contact:hover{text-decoration:underline}
-.fp-update{display:none;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:8px;
-  background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.5}
-.fp-update a{color:#2563eb;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
-.fp-update i{margin-left:auto;font-style:normal;cursor:pointer;color:#b45309;padding:0 4px;flex-shrink:0}
-.fp-update.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.fp-update{display:none;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;
+  background:#fff8e6;border:1px solid #f4e2a8;color:#8a6300;font-size:12px;line-height:1.5}
+.fp-update a{color:#2f7fe0;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0}
+.fp-update i{margin-left:auto;font-style:normal;cursor:pointer;color:#a9791a;padding:0 4px;flex-shrink:0}
+.fp-update.ok{background:#eefaf1;border-color:#bfe9cd;color:#1d7a3a}
 .fp-update.ok a{display:none}
-.fp-update.busy{background:#f8fafc;border-color:#e2e8f0;color:#475569}
+.fp-update.busy{background:#f4f8fd;border-color:#dbe3ee;color:#4a5a6a}
 .fp-update.busy a,.fp-update.busy i{display:none}
-.fp-update.err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.fp-update.err{background:#fdf0f0;border-color:#f6cccc;color:#a12424}
 .fp-update.err a{display:none}
 `;
         const el = document.createElement('style');
@@ -380,7 +383,7 @@
         panel.innerHTML = `
 <div class="fp-scroll">
 <div class="fp-head" id="fp-drag">
-    <div class="fp-brand"><span class="fp-dot"></span><span class="fp-name">试卷排版打印</span></div>
+    <div class="fp-brand"><span class="fp-emoji">✨</span><span class="fp-name">试卷排版打印</span></div>
     <div><span class="fp-mini" id="fp-toggle">设置 ▾</span><span class="fp-x" id="fp-close" title="关闭（刷新页面重现）">×</span></div>
 </div>
 
@@ -399,6 +402,8 @@
 </div>
 
 <div class="fp-adv" id="fp-adv">
+  <div class="fp-sec">
+    <div class="fp-sec-t">版面外观</div>
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-cover"> 附自制封面页（含缓冲页）</label>
         <div class="fp-hint">默认关闭：正式试卷沿用粉笔自己的首页封底，只在做示意页 / 预览演示时才需要勾上</div>
     </div>
@@ -415,6 +420,9 @@
         <div class="fp-field"><label class="fp-label">行距</label><input type="number" id="fp-lineHeight" step="0.05" class="fp-input"></div>
     </div>
     <div class="fp-field"><label class="fp-label">题目间距 (px)</label><input type="number" id="fp-qSpacing" class="fp-input"></div>
+  </div>
+  <div class="fp-sec">
+    <div class="fp-sec-t">排版规则</div>
     <div class="fp-field">
         <label class="fp-label">换页方式</label>
         <select id="fp-pagination" class="fp-select">
@@ -446,6 +454,9 @@
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-qrcode"> 末页附对答案二维码</label>
         <div class="fp-hint">需联网生成；取不到会自动隐藏，不影响正文</div>
     </div>
+  </div>
+  <div class="fp-sec">
+    <div class="fp-sec-t">导出与更新</div>
     <div class="fp-field">
         <label class="fp-label">关闭页面倒计时 (秒)</label>
         <input type="number" id="fp-countdown" class="fp-input">
@@ -454,6 +465,7 @@
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
     <button id="fp-check" class="fp-btn2" style="width:100%;margin-top:8px">检查更新</button>
+  </div>
 </div>
 
 <div class="fp-update" id="fp-update"></div>
@@ -1177,11 +1189,10 @@ p{margin:0 0 .5em}
 .fp-cover-tips{text-align:left;font-size:15px;line-height:2.1;margin:0 auto;width:82%;
   font-family:"KaiTi","STKaiti","SimSun",serif}
 .fp-cover-tips p{text-indent:2em;margin:10px 0}
-.fp-cover-barcode{position:absolute;bottom:72px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:20px;font-size:14px;color:#000}
-.fp-cover-barcode .side{writing-mode:vertical-rl;letter-spacing:4px;font-size:14px;height:104px;display:flex;align-items:center}
-.fp-cover-barcode .box{width:60px;height:104px;border:1px dashed #333;display:flex;align-items:center;justify-content:center}
+.fp-cover-barcode{position:absolute;bottom:210px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:22px;font-size:14px;color:#000}
+.fp-cover-barcode .box{width:64px;height:108px;border:1px dashed #333;display:flex;align-items:center;justify-content:center}
 .fp-cover-barcode .box span{writing-mode:vertical-rl;letter-spacing:3px;font-size:13px}
-.fp-cover-barcode .tip{text-align:left;line-height:1.8}
+.fp-cover-barcode .tip{text-align:left;line-height:1.8;font-size:13px}
 .fp-cover-sign{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#64748b;letter-spacing:1px}
 .fp-blank{height:262mm;page-break-after:always;break-after:page;page:fpblank}
 
@@ -1334,7 +1345,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     <p>本场考试规定：监考老师要向本考场全体考生展示题本密封情况，并邀请两名考生代表验封签字后，方能开启试卷袋。</p>
   </div>
   <div class="fp-cover-barcode">
-    <div class="side">条形码粘贴处</div>
     <div class="box"><span>条形码粘贴处</span></div>
     <div class="tip">请将此条形码揭下，<br>贴在答题卡指定位置</div>
   </div>
