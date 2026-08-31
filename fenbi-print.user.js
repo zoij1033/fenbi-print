@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.9
+// @version      1.7.0
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.9';
+    const VERSION = '1.7.0';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -296,6 +296,22 @@
         }
         if (document.title) return document.title.trim();
         return '公务员录用考试试卷';
+    }
+
+    // 把粉笔的试卷标题拆成「考试名（小字）+ 试卷名（大字）」
+    // 常见格式："2023 年多省市公务员录用考试 行政职业能力测验（组卷一）"
+    function parseCoverTitle(raw) {
+        const t = (raw || '').replace(/^\s+|\s+$/g, '');
+        if (!t) return { exam: '', paper: '公务员录用考试试卷' };
+        // 1. 优先按 "...考试" + 空格/《 切分
+        const m = t.match(/^(.+?考试)\s*[,，\s《](.+)$/);
+        if (m) return { exam: m[1].trim(), paper: m[2].trim() };
+        // 2. 按第一个空格切分（年份+考试名 / 试卷名）
+        const idx = t.indexOf(' ');
+        if (idx > 0 && idx < t.length - 1) {
+            return { exam: t.slice(0, idx).trim(), paper: t.slice(idx + 1).trim() };
+        }
+        return { exam: '', paper: t };
     }
 
     function getPaperId() {
@@ -1168,20 +1184,21 @@ p{margin:0 0 .5em}
 .fp-cover-side .t2{top:70%}
 .fp-cover-side i{flex:1;border-bottom:1px solid #000;margin-left:8px;height:0}
 .fp-cover-main{flex:1;position:relative;padding:52px 36px;text-align:center}
-.fp-cover-notice{position:absolute;top:34px;right:34px;border:1px solid #333;padding:7px 11px;font-size:13px;line-height:1.5}
-.fp-cover-tt{margin-top:92px;margin-bottom:54px}
-.fp-cover-tt .l1{font-size:26px;font-weight:700;letter-spacing:2px;margin-bottom:18px;line-height:1.5}
-.fp-cover-tt .l2{font-size:22px;font-weight:700;letter-spacing:2px;line-height:1.5}
+.fp-cover-notice{position:absolute;top:34px;right:34px;border:1px solid #333;padding:8px 10px;font-size:13px;line-height:1.6;letter-spacing:1px}
+.fp-cover-exam{font-size:16px;font-weight:400;letter-spacing:2px;color:#333;margin-top:78px;margin-bottom:10px}
+.fp-cover-tt{margin-top:0;margin-bottom:54px}
+.fp-cover-tt .l1{font-size:28px;font-weight:700;letter-spacing:2px;margin-bottom:14px;line-height:1.5}
+.fp-cover-tt .l2{font-size:24px;font-weight:700;letter-spacing:2px;line-height:1.5}
 .fp-cover-hr{display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;margin:0 auto 34px;width:76%}
 .fp-cover-hr::before,.fp-cover-hr::after{content:'';flex:1;border-bottom:1px dashed #333;margin:0 14px}
 .fp-cover-tips{text-align:left;font-size:15px;line-height:2.1;margin:0 auto;width:82%;
   font-family:"KaiTi","STKaiti","SimSun",serif}
 .fp-cover-tips p{text-indent:2em;margin:10px 0}
-.fp-cover-score{position:absolute;bottom:118px;left:0;right:0;display:flex;justify-content:center;gap:38px;
-  font-size:16px;font-weight:700;letter-spacing:2px}
-.fp-cover-score div{display:flex;align-items:flex-end}
-.fp-cover-score i{border-bottom:1px dashed #000;width:118px;margin-left:8px;height:1em}
-.fp-cover-sign{position:absolute;bottom:46px;left:0;right:0;text-align:center;font-size:12px;color:#64748b;letter-spacing:1px}
+.fp-cover-barcode{position:absolute;bottom:52px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:18px;font-size:14px;color:#000}
+.fp-cover-barcode .side{writing-mode:vertical-rl;letter-spacing:4px;font-size:14px;height:90px;display:flex;align-items:center}
+.fp-cover-barcode .box{width:48px;height:90px;border:1px dashed #333;display:flex;align-items:center;justify-content:center}
+.fp-cover-barcode .box span{writing-mode:vertical-rl;letter-spacing:3px;font-size:13px}
+.fp-cover-barcode .tip{text-align:left;line-height:1.8}
 .fp-blank{height:262mm;page-break-after:always;break-after:page;page:fpblank}
 
 /* ---------- 章节 ---------- */
@@ -1322,26 +1339,24 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 
         // ---------- 封面 ----------
         if (opt.cover) {
-            let l1 = opt.title, l2 = '';
-            if (opt.title.includes('《')) {
-                const parts = opt.title.split('《');
-                l1 = esc(parts[0]);
-                l2 = '《' + esc(parts[1]);
-            } else {
-                l1 = esc(opt.title);
-            }
+            const { exam, paper } = parseCoverTitle(opt.title);
+            const examHtml = exam ? `<div class="fp-cover-exam">${esc(exam)}</div>` : '';
             html += `<div class="fp-sheet fp-cover">
 <div class="fp-cover-side"><div class="t1">准考证号<i></i></div><div class="t2">姓名<i></i></div></div>
 <div class="fp-cover-main">
-  <div class="fp-cover-notice">内部资料<br>考生专用</div>
-  <div class="fp-cover-tt"><div class="l1">${l1}</div>${l2 ? `<div class="l2">${l2}</div>` : ''}</div>
+  <div class="fp-cover-notice">粉笔内部<br>题库试卷</div>
+  ${examHtml}
+  <div class="fp-cover-tt"><div class="l1">${esc(paper)}</div></div>
   <div class="fp-cover-hr">重要提示</div>
   <div class="fp-cover-tips">
     <p>为维护您的个人权益，确保考试的公平公正，请您协助我们监督考试实施工作。</p>
     <p>本场考试规定：监考老师要向本考场全体考生展示题本密封情况，并邀请两名考生代表验封签字后，方能开启试卷袋。</p>
   </div>
-  <div class="fp-cover-score"><div>名字：<i></i></div><div>分数：<i></i></div></div>
-  ${opt.signature ? `<div class="fp-cover-sign">${esc(opt.signature)}</div>` : ''}
+  <div class="fp-cover-barcode">
+    <div class="side">条形码粘贴处</div>
+    <div class="box"><span>条形码粘贴处</span></div>
+    <div class="tip">请将此条形码揭下，<br>贴在答题卡指定位置</div>
+  </div>
 </div></div>
 <div class="fp-blank">&nbsp;</div>
 `;
