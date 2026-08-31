@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.6.8
+// @version      1.6.9
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.6.8';
+    const VERSION = '1.6.9';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -1261,11 +1261,11 @@ tr{break-inside:avoid;page-break-inside:avoid}
   text-indent:0!important;white-space:normal}
 .fp-opt:not(.fp-opt-img) img{display:inline-block!important;vertical-align:middle!important}
 
-/* 图形选项：图片里已经画了 A/B/C/D，字母不再重复打一遍；
-   整体居左，跟文字题一个排法，不居中。 */
+/* 图形选项：仍保留 A/B/C/D 字母，避免公式/图片选项没有标号；
+   字母在 flex column 中会单独一行位于图片上方，整体居左。 */
 .fp-opt-img{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
   text-align:left;padding-left:0;text-indent:0;min-width:120px}
-.fp-opt-img .fp-ol{display:none!important}
+.fp-opt-img .fp-ol{display:block!important;margin:0 0 4px 0!important;float:none!important;width:auto!important}
 
 /* ---------- 申论作答区（格线间距由渲染层按字号内联指定） ---------- */
 .fp-space{margin:10px 0 4px;border:1px solid #c8d0da;border-radius:2px;
