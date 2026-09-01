@@ -2672,12 +2672,17 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
      * 九、启动
      * ================================================================ */
 
-    // 1.8.7：防重复注入。书签每次点击都会拉最新版注入一次，若页面已有一个实例，
-    // 再次注入会让两个版本面板在同一 DOM 叠加、事件绑错节点 → 面板卡死。
-    // 已存在实例则直接退出，不重复建面板。
-    // （forceUpdate 的重注入会先 destroyOldInstance，故不受此拦，能正常覆盖。）
-    if (window.__FP_INJECTED__) { return; }
+    // 1.8.7：防多版本在同一页面叠加（旧版书签/缓存会先注入一个旧面板，新版后到需接管）。
+    // 做法：新版启动时**先拆掉 DOM 里任何已存在的 fp- 面板**（无论它是什么版本，
+    // 旧版脚本不认版本、不会自己让位，只能由新版靠 DOM 直接接管），再初始化自己。
+    // 这样旧版（如已分发的 1.8.1）先到占着面板，1.8.7 后到会把它拆掉、建自己的，页面最终只剩最新版。
+    // 先判「同版本重复注入」（书签连点）轻量拦截，避免无限重建；不同版本则拆旧接管。
+    if (window.__FP_INJECTED__ && window.__FP_VERSION__ === (extractVersion(VERSION) || VERSION)) {
+        return; // 同版本且已建过，跳过（防连点狂建）
+    }
+    destroyOldInstance();
     window.__FP_INJECTED__ = true;
+    window.__FP_VERSION__ = extractVersion(VERSION) || VERSION;
 
     injectStyle();
     const { panel } = buildPanel();
