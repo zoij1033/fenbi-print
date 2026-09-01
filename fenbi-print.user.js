@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.0
+// @version      1.8.1
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.0';
+    const VERSION = '1.8.1';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -188,6 +188,9 @@
     }
 
     const text = (el) => (el ? (el.innerText || el.textContent || '').trim() : '');
+    // 题号规范化：粉笔某些题型（材料分析、申论小题等）没有数字题号时，DOM 里偶尔出现
+    // 字面量「null」占位。这里统一归零为空，避免试卷里印出「null.」这种字样。
+    const normNum = (s) => { const t = (s == null ? '' : String(s)).trim(); return (/^null$/i.test(t) ? '' : t); };
 
     // 估算一段文本占多宽：全角字符记 1，半角（ASCII）记 0.55，单位是「字号的倍数」
     function cjkUnits(s) {
@@ -589,7 +592,9 @@
         if (pv) pv.addEventListener('click', onPreview);
     }
 
-    function setStatus(html) { const el = $('fp-stat'); if (el) el.innerHTML = html; }
+    // 任何 null/undefined 都归零为空串——否则 element.innerHTML = null 会被浏览器
+    // 渲染成字面量「null」，这正是面板偶发显示「null」的根因之一。
+    function setStatus(html) { const el = $('fp-stat'); if (el) el.innerHTML = (html == null ? '' : html); }
     function showMask(title, sub) {
         if (title) $('fp-mask-title').textContent = title;
         if (sub) $('fp-mask-sub').textContent = sub;
@@ -883,7 +888,7 @@
             }
 
             if (tag === 'app-ti') {
-                const num = text(el.querySelector('.title-index'));
+                const num = normNum(text(el.querySelector('.title-index')));
                 const stemHtml = pickStem(el);
                 const picked = pickOptions(el);
                 const stemImgs = (() => {
@@ -973,7 +978,7 @@
             if (ti) {
                 items.push({ kind: 'chapter', name: '作答要求', desc: '' });
                 items.push({
-                    kind: 'question', num: esc(text(ti.querySelector('.title-index'))),
+                    kind: 'question', num: esc(normNum(text(ti.querySelector('.title-index')))),
                     stemHtml: pickStem(ti), options: [], maxUnits: 0, maxImgW: 0,
                     allImage: false, figure: false, key: keyOf(ti) || 'q0'
                 });
@@ -1029,7 +1034,7 @@
                 seen.add(k);
                 questions.push({
                     kind: 'question',
-                    num: esc(text(ti.querySelector('.title-index'))),
+                    num: esc(normNum(text(ti.querySelector('.title-index')))),
                     stemHtml: pickStem(ti),
                     options: [],
                     maxUnits: 0,
@@ -2217,14 +2222,15 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         let q = 0, m = 0;
         if (isShenlun) {
             // 申论：直接数题目 / 材料 tab，不切 tab、不克隆内容，零打扰
-            q = document.querySelectorAll('.questions-anchors .tabs-content .tab, .questions-anchors .tab').length
-                || document.querySelectorAll('.questions-objective-container app-ti, app-ti').length;
-            m = document.querySelectorAll('app-materials .tabs-content .tab').length;
+            q = Number(document.querySelectorAll('.questions-anchors .tabs-content .tab, .questions-anchors .tab').length
+                || document.querySelectorAll('.questions-objective-container app-ti, app-ti').length) || 0;
+            m = Number(document.querySelectorAll('app-materials .tabs-content .tab').length) || 0;
         } else {
             try {
                 const items = await extractXingce(() => {}, true);
-                q = items.filter((i) => i.kind === 'question').length;
-                m = items.filter((i) => i.kind === 'material').length;
+                const arr = Array.isArray(items) ? items : [];
+                q = Number(arr.filter((i) => i && i.kind === 'question').length) || 0;
+                m = Number(arr.filter((i) => i && i.kind === 'material').length) || 0;
             } catch (e) { setStatus(''); return; }
         }
         if (!q) { setStatus(''); return; }   // 没有题目不显示
