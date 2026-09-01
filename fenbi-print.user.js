@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.1
+// @version      1.8.2
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.1';
+    const VERSION = '1.8.2';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -176,6 +176,35 @@
         })(d);
         const s = out.join('').replace(/\s+/g, ' ').trim();
         return s || html;
+    }
+
+    // 把图文混合选项拆成：字母圈 + 图片块 + 文字块
+    function splitMixedOpt(html) {
+        const d = document.createElement('div');
+        d.innerHTML = html;
+        const ol = d.querySelector('.fp-ol');
+        if (ol) ol.remove();
+        const imgs = [...d.querySelectorAll('img')];
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'fp-mixed-img';
+        imgs.forEach((img) => imgWrap.appendChild(img));
+        const textWrap = document.createElement('div');
+        textWrap.className = 'fp-mixed-text';
+        // 把剩余的非空文本/节点收集为文字说明
+        [...d.childNodes].forEach((n) => {
+            if (n.nodeType === 3) {
+                const t = n.nodeValue.replace(/\s+/g, ' ').trim();
+                if (t) textWrap.appendChild(document.createTextNode(t + ' '));
+            } else if (n.nodeType === 1 && !n.matches('img')) {
+                const t = (n.textContent || '').replace(/\s+/g, ' ').trim();
+                if (t) textWrap.appendChild(n);
+            }
+        });
+        const block = document.createElement('div');
+        block.className = 'fp-mixed-block';
+        if (imgWrap.children.length) block.appendChild(imgWrap);
+        if (textWrap.childNodes.length) block.appendChild(textWrap);
+        return { ol: ol ? ol.outerHTML : '', block: block.innerHTML };
     }
 
     // 数值设置：非法输入一律回退到默认值
@@ -729,7 +758,7 @@
         const empty = { options: [], allImage: false, hasBigImg: false, maxUnits: 0, maxImgW: 0 };
         if (!nodes.length) return empty;
 
-        let allImage = true, hasBigImg = false;
+        let allImage = true, mixedMedia = false, hasBigImg = false;
         const raw = [];
 
         nodes.forEach((opt, i) => {
@@ -774,9 +803,14 @@
             // 量正文宽度时排除字母，免得列宽被多算出一个字母
             const forText = clone.cloneNode(true);
             forText.querySelectorAll('.fp-ol').forEach((e) => e.remove());
-            const plain = (forText.innerText || '').replace(/\s+/g, '');
+            // innerText 在部分自定义元素/异步渲染结构下可能返回空，用 textContent 兜底，
+            // 否则 long 选项会被误判成短选项 → 错误排成 grid-4 四等分。
+            let plain = (forText.innerText || '').replace(/\s+/g, '');
+            if (plain.length < 3) plain = (forText.textContent || '').replace(/\s+/g, '');
             const hasMedia = !!clone.querySelector('img, svg, canvas');
-            if (plain.length > 0 && !/^[A-D.、]$/.test(plain) && !hasMedia) allImage = false;
+            const isRealText = plain.length > 0 && !/^[A-D.、]$/.test(plain);
+            if (isRealText && !hasMedia) allImage = false;
+            if (isRealText && hasMedia) { mixedMedia = true; allImage = false; }
 
             // 记录选项里最宽的一张图，供渲染层估算列宽
             let imgW = 0;
@@ -807,7 +841,11 @@
             if (!hasOwnLetter && !hasOwnLetterText(holder, letter)) {
                 holder.insertAdjacentHTML('afterbegin', `<span class="fp-ol">${esc(letter)}.</span>`);
             }
-            return { letter: esc(letter), html: holder.innerHTML.trim(), units, imgW };
+            // 用 holder 的真实文本长度兜底一次 units：pickOptions 阶段 innerText/textContent
+            // 若因 DOM 结构异常算短，这里拿 holder 全文再算一遍，避免长选项被误判成短选项。
+            const realText = (holder.textContent || '').replace(/[\s　]/g, '');
+            const realUnits = cjkUnits(realText);
+            return { letter: esc(letter), html: holder.innerHTML.trim(), units: Math.max(units, realUnits), imgW, hasMedia };
         });
 
         let maxUnits = 0, maxImgW = 0;
@@ -816,7 +854,7 @@
             if (o.imgW > maxImgW) maxImgW = o.imgW;
         });
 
-        return { options, allImage, hasBigImg, maxUnits, maxImgW };
+        return { options, allImage, mixedMedia, hasBigImg, maxUnits, maxImgW };
     }
 
     // ---- 行测：滚动加载后直接读取 ----
@@ -903,9 +941,10 @@
                     stemHtml,
                     options: picked.options,
                     allImage: picked.allImage,
+                    mixedMedia: picked.mixedMedia,
                     maxUnits: picked.maxUnits,
                     maxImgW: picked.maxImgW,
-                    figure: picked.allImage || stemImgs >= 1,
+                    figure: picked.allImage || picked.mixedMedia || stemImgs >= 1,
                     key: el.getAttribute('data-question-key') || num || String(items.length)
                 });
             }
@@ -1089,9 +1128,34 @@
         const gap = 18;                                        // 与 CSS .fp-opts 的 column-gap 一致
         const colW = (n) => (usable - gap * (n - 1)) / n;
 
-        // 文字需求宽（另留 "A." 与右边距）+ 图片需求宽（按缩放后计）
-        const textNeed = q.maxUnits * opt.fontSize + (q.allImage ? 0 : opt.fontSize * 2.5);
-        const imgNeed = q.maxImgW * opt.figScale / 100;
+        // 文字需求宽（另留 "A." 与右边距）+ 图片需求宽（按缩放后计）。
+        // 全图/图文混合选项在 CSS 里被限制在 140×100 的框内（object-fit:contain），
+        // 这里若按原图自然宽度算需求，会把明明能横排四个的公式图误判成 grid-1，
+        // 导致一页只能竖着放两个选项。
+        // 文字宽度用「maxUnits × 字号 × 0.95」估算：行内汉字并非满宽（实测约 0.95em），
+        // 再补 1.2em 容差（字母 "A." 占位 + 列间余量）。早期用 +2.5em 死余量会把
+        // 本可两列排的中等选项高估成 grid-1，导致中等选项也独占一行。
+        //
+        // 兜底：pickOptions 在部分真实 DOM（Shadow DOM / 异步渲染 / 自定义元素）下
+        // 可能把长选项的 maxUnits 算小，结果长文本被错误排成 grid-4 强制四等分。
+        // 这里拿 q.options 里每个选项的 HTML 真实文本长度再算一遍，取较大值。
+        let realMaxUnits = 0;
+        if (q.options && q.options.length) {
+            const holder = document.createElement('div');
+            q.options.forEach((o) => {
+                holder.innerHTML = o.html || '';
+                const t = (holder.textContent || '').replace(/[\s　]/g, '');
+                const u = cjkUnits(t);
+                if (u > realMaxUnits) realMaxUnits = u;
+            });
+        }
+        const maxUnits = Math.max(q.maxUnits || 0, realMaxUnits);
+
+        const isVisualOpt = q.allImage || q.mixedMedia;
+        const textNeed = maxUnits * opt.fontSize * 0.95 + (isVisualOpt ? 0 : opt.fontSize * 1.2);
+        const imgNeed = isVisualOpt
+            ? Math.min(q.maxImgW * opt.figScale / 100, 140)
+            : q.maxImgW * opt.figScale / 100;
         const need = Math.max(textNeed, imgNeed);
 
         if (need <= 0) return 'grid-1';
@@ -1299,7 +1363,7 @@ tr{break-inside:avoid;page-break-inside:avoid}
    悬挂靠 padding-left + 负 text-indent：字母顶到左边界，
    换行后的文字从 padding 边界起排，对齐到字母右侧。 */
 .fp-opt{page-break-inside:avoid;break-inside:avoid;line-height:${opt.lineHeight};
-  word-break:break-word;padding-left:0;text-indent:0}
+  word-break:break-word;padding-left:0;text-indent:0;min-width:0}
 .fp-opt .fp-ol{display:inline-block!important;float:left!important;margin-left:calc(-1 * var(--ohang,${HANG}em))!important;width:var(--ohang,${HANG}em)!important;
   height:auto!important;min-width:0!important;max-width:none!important;
   border:0!important;border-radius:0!important;background:none!important;
@@ -1310,20 +1374,38 @@ tr{break-inside:avoid;page-break-inside:avoid}
   position:static!important;transform:none!important}
 .fp-opt .fp-ol::before,.fp-opt .fp-ol::after{content:none!important;display:none!important}
 .fp-opt p{margin:0!important;padding:0!important}
-/* 兜底两层：万一还有没拆干净的块级外壳，也强制成行内，
-   别再让字母和内容各占一行。text-indent 是会继承的，
-   不归零的话子盒子第一行会跟着一起左移出悬挂位。 */
-.fp-opt:not(.fp-opt-img)>*,
-.fp-opt:not(.fp-opt-img)>*>*,
-.fp-opt:not(.fp-opt-img)>*>*>*{display:inline!important;margin:0!important;padding:0!important;
-  text-indent:0!important;white-space:normal}
-.fp-opt:not(.fp-opt-img) img{display:inline-block!important;vertical-align:middle!important}
 
-/* 图形选项：仍保留 A/B/C/D 字母，避免公式/图片选项没有标号；
-   字母在 flex column 中会单独一行位于图片上方，整体居左。 */
-.fp-opt-img{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;
-  text-align:left;padding-left:0;text-indent:0;min-width:120px}
-.fp-opt-img .fp-ol{display:block!important;margin:0 0 4px 0!important;float:none!important;width:auto!important}
+/* 图形选项：选项之间仍按 .fp-opts 横向排列（flex-wrap 决定 grid-1/2/4），
+   只在选项内部把「字母圈 + 图」上下排列并保证顶端对齐。
+
+   早先用 flex-wrap 排选项、flex 列排字母+图时：整组横排后按整组高度
+   交叉轴对齐，图片高度不一 → 字母圈被推到图片底部、参差不齐。
+   这次只动选项内部 —— display:block 让字母圈 + 图各自成行，
+   align-self:start 防止外层 flex 再次把字母往下推。
+   外层 .fp-opts 的横向排列保持不变 —— 不该把一行四个选项劈成纵向一列。
+
+   公式图（分数、根号等）资源本身可能又窄又高，只限制宽度会变成细长竖条，
+   依旧占满半页；所以同时限制最大宽度与最大高度，并用 object-fit:contain
+   在框内完整显示。scaleFigures() 写进来的等比缩放内联 width 会被 max-* 顶住。 */
+.fp-opt-img{display:block;text-align:left;min-width:120px;align-self:start;
+  page-break-inside:avoid;break-inside:avoid}
+.fp-opt-img .fp-ol{display:block!important;margin:0 0 6px 0!important;float:none!important;width:auto!important}
+.fp-opt-img>div,.fp-opt-img>span{display:block}
+.fp-opt-img img{display:block;width:auto!important;max-width:140px!important;max-height:100px!important;height:auto!important;margin:0;vertical-align:top;object-fit:contain}
+
+/* 图文混合选项：每个选项是「字母圈 + 图片/文字卡片」横向排列。
+   卡片内部图片在上、文字在下；卡片底部齐平，这样字母圈与文字
+   描述的下沿处于同一水平线，不会因为图片高度不同而上下错位。 */
+.fp-opts:has(.fp-opt-mixed){align-items:flex-end!important}
+.fp-opt-mixed{display:inline-flex!important;align-items:flex-end!important;gap:6px;
+  text-align:left;min-width:120px;page-break-inside:avoid;break-inside:avoid}
+.fp-opt-mixed .fp-ol{display:inline-block!important;margin:0!important;padding:0!important;
+  float:none!important;width:auto!important;min-width:0!important;max-width:none!important;
+  line-height:inherit!important;vertical-align:baseline!important}
+.fp-opt-mixed .fp-mixed-block{display:flex;flex-direction:column;align-items:flex-start}
+.fp-opt-mixed .fp-mixed-img img{display:block;width:auto!important;max-width:140px!important;
+  max-height:100px!important;height:auto!important;margin:0 0 4px;vertical-align:top;object-fit:contain}
+.fp-opt-mixed .fp-mixed-text{display:block;line-height:${opt.lineHeight}}
 
 /* ---------- 申论作答区（格线间距由渲染层按字号内联指定） ---------- */
 .fp-space{margin:10px 0 4px;border:1px solid #c8d0da;border-radius:2px;
@@ -1456,8 +1538,16 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                     html += `<div class="fp-opts ${layoutFor(it, opt)}">`;
                     it.options.forEach((o) => {
                         // 字母是粉笔自己的节点，已经随 o.html 一起进来了，这里不再另加
+                        // 严格区分选项类型：纯文字保持原样；有图无文走图片选项；图文混合才走新布局。
                         const oh = flattenOpt(blankify(o.html));
-                        html += `<div class="fp-opt${it.allImage ? ' fp-opt-img' : ''}">${oh}</div>`;
+                        if (o.hasMedia && o.units > 0) {
+                            const parts = splitMixedOpt(blankify(o.html));
+                            html += `<div class="fp-opt fp-opt-mixed">${parts.ol}<div class="fp-mixed-block">${parts.block}</div></div>`;
+                        } else if (o.hasMedia) {
+                            html += `<div class="fp-opt fp-opt-img">${oh}</div>`;
+                        } else {
+                            html += `<div class="fp-opt">${oh}</div>`;
+                        }
                     });
                     html += `</div>`;
                 }
@@ -1644,8 +1734,10 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       if (node.tagName === 'P' || node.tagName === 'TABLE' || node.tagName === 'IMG'){
         push(node, meta); return;
       }
-      // 整块含表格则整体保留（表格不能拆）
-      if (node.querySelector && node.querySelector('table')){ push(node, meta); return; }
+      // 表格本身不能拆，但表格前后的段落必须独立成原子。
+      // 旧逻辑「整块含表格就整体保留」会把「长段落 + 表格」粘成一个上千像素的巨块：
+      // 页尾放不下时整块翻页留一大片空白，巨块被硬塞进空白页又顶出页面，
+      // 分页器为了救它收紧页高，结果全篇每一页都被压矮、留下十几行空白。
       var kids = node.children;
       // 兜底一：材料正文常常不是 <p>，而是直接包在 div.content / .material-content 里。
       // 这种「只有文本、没有元素子节点」的叶子容器必须整块收下 ——
@@ -1685,7 +1777,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
             for (k = 0; k < e.children.length; k++)
               drill(e.children[k], Object.assign({}, qMeta, { slot: 'stem' }), 0);
           } else if (e.classList.contains('fp-opts')){
-            var g = (e.className.match(/grid-\\d/) || ['grid-4'])[0];
+            var g = (e.className.match(/grid-\d/) || ['grid-4'])[0];
             for (var m = 0; m < e.children.length; m++)
               push(e.children[m], Object.assign({}, qMeta, { slot: 'opt', grid: g }));
           } else if (e.classList.contains('fp-space')){
@@ -1744,17 +1836,30 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     host.appendChild(a.node);
   }
 
-  // 可沿行边界撕开的纯文本节点（不含表格/图片/公式等不能腰斩的元素）
+  // 可沿行边界撕开的纯文本节点（不含表格/图片/公式等不能腰斩的元素）。
+  // .fp-opt 是 DIV，但它是选项整体，撕开会把 A/B/C/D 选项文本劈断，
+  // 所以必须排除 —— 否则「回溯让位」逻辑不会触发，页尾剩下一点缝塞不下选项时
+  // 只能整组翻页，留下大片空白。
   function canSplitNode(node){
     return node && /^(P|DIV|SPAN|SECTION|ARTICLE|BLOCKQUOTE|CENTER|APP-FORMAT-HTML)$/i.test(node.tagName)
+      && !node.classList.contains('fp-opt')
       && !node.querySelector('img,table,svg,canvas,iframe,object,embed,math');
   }
 
   // 把一段长文字从「剩余高度」处按行边界真实切成两段：
-  // first 含顶部前 N 行（带题号），rest 含第 N+1 行起的剩余文本（不带题号）。
-  // 关键：直接切文本内容，而不是「克隆整段 + 负 margin 续接」——
-  // 旧写法里 rest 是完整克隆，靠负 margin 把上半截藏起来；一旦没被父容器精确裁掉，
-  // 续接段就会把题目前 N 行原样露出来，造成题目文本重复（Q4、Q64 均复现此问题）。
+  // first 含顶部前 N 行（带题号、保留内联结构），rest 含第 N+1 行起的剩余文本。
+  //
+  // 这一版之前踩过两次坑，都值得记下来：
+  //  1) 最早用「克隆整段 + 负 margin 续接」：rest 是完整克隆，靠负 margin 把上半截
+  //     藏起来，一旦没被父容器精确裁掉，前 N 行就原样露出 —— 题目文本重复
+  //     （Q4、Q64 复现过）。
+  //  2) 为修 1) 改成 textContent 按字符重建：不重复了，但会把题干里的下划线填空
+  //     <u><span class="fp-ul"></span></u> 整个抹掉。为了不丢结构，又加了
+  //     extraEls>0 守卫「含内联元素就不拆」，结果言语理解这类含下划线的长题干
+  //     在页尾一律整段翻页，页尾留下大段空白（用户反馈「还剩五行的留白」）。
+  //
+  // 现在改用 Range 按行边界定位切点 + cloneContents()：内联结构原样保留，
+  // 既不会丢下划线，也不再需要那道一刀切的守卫，含 <u> 的段落照样能续排。
   function splitTextAtom(atom, remain){
     var node = atom.node;
     if (!canSplitNode(node)) return null;
@@ -1763,76 +1868,110 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     if (!(lh > 0)) return null;
     var lines = Math.max(1, Math.floor(remain / lh));
     var h = Math.floor(lines * lh);
-    // 拆得太少或几乎整段都能放下，就不拆了
-    if (h < 24 || h >= atom.h - 16) return null;
-    // 含题号之外的内联元素（如下划线 <u>）时不按字符切，整块移到下一页，避免结构错乱
-    var numEl = node.querySelector('.fp-num');
-    var extraEls = node.querySelectorAll('*').length - (numEl ? 1 : 0);
-    if (extraEls > 0) return null;
-
-    var numHTML = numEl ? numEl.outerHTML : '';
-    var txt = node.textContent;
-    if (numEl) txt = txt.replace(numEl.textContent, '');
-    txt = txt.replace(/^[\s　]+|[\s　]+$/g, '');
-    if (!txt) return null;
-
-    // 在同位置放一个同宽探针，按字符二分找「高度≈h」的截断点
-    var probe = document.createElement(node.tagName);
-    probe.style.cssText = node.style.cssText;
-    probe.className = node.className;
-    probe.style.position = 'absolute';
-    probe.style.left = '-99999px';
-    probe.style.top = '0';
-    probe.style.margin = '0';
-    probe.style.padding = '0';
-    probe.style.maxHeight = 'none';
-    probe.style.overflow = 'visible';
-    probe.style.width = Math.round(node.getBoundingClientRect().width) + 'px';
-    probe.innerHTML = numHTML;
-    probe.appendChild(document.createTextNode(txt));
-    (node.parentNode || document.body).appendChild(probe);
-    var cut = findCharCut(probe, numHTML, txt, h);
-    if (node.parentNode) node.parentNode.removeChild(probe);
-    if (cut <= 0 || cut >= txt.length) return null;
-
-    var first = document.createElement(node.tagName);
-    first.className = node.className;
-    first.style.cssText = node.style.cssText;
-    first.style.maxHeight = h + 'px';
-    first.style.overflow = 'hidden';
-    first.style.marginBottom = '0';
-    first.style.breakInside = 'auto';
-    first.style.pageBreakInside = 'auto';
-    first.innerHTML = numHTML;
-    first.appendChild(document.createTextNode(txt.slice(0, cut)));
-
-    var rest = document.createElement(node.tagName);
-    rest.className = node.className;
-    rest.style.cssText = node.style.cssText;
-    rest.style.marginTop = '0';
-    rest.style.breakInside = 'auto';
-    rest.style.pageBreakInside = 'auto';
-    rest.textContent = txt.slice(cut);
-    return { first: first, rest: rest, h: h };
+    // unplace 之后节点是游离的（不在文档里），getBoundingClientRect 量出来恒为 0，
+    // findLineCut 就测不到真实行高、切点会错落到段尾，最后 rest 为空 -> 返回 null -> 整段翻页留白。
+    // 这里临时把节点挂回一个等宽的隐藏测量层，量完再摘掉（节点原本就是游离的，摘掉不影响状态）。
+    var detached = !node.ownerDocument || !node.ownerDocument.body.contains(node);
+    var measHost = null;
+    if (detached){
+      measHost = document.createElement('div');
+      measHost.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;width:'
+        + (document.getElementById('fp-flow') ? document.getElementById('fp-flow').clientWidth : 703) + 'px';
+      measHost.appendChild(node);
+      document.body.appendChild(measHost);
+    }
+    var cutRes = findLineCut(node, h);
+    var parts = null;
+    if (cutRes){
+      var first = node.cloneNode(false);
+      var rest = node.cloneNode(false);
+      var r1 = document.createRange();
+      r1.setStart(node, 0); r1.setEnd(cutRes.node, cutRes.offset);
+      first.appendChild(r1.cloneContents());
+      var r2 = document.createRange();
+      r2.setStart(cutRes.node, cutRes.offset); r2.setEnd(node, node.childNodes.length);
+      rest.appendChild(r2.cloneContents());
+      var fl = first.textContent.replace(/[\s　]/g,'').length;
+      var rl = rest.textContent.replace(/[\s　]/g,'').length;
+      parts = (fl && rl) ? { first: first, rest: rest, h: h } : null;
+    }
+    if (parts){
+      parts.first.style.maxHeight = h + 'px';
+      parts.first.style.overflow = 'hidden';
+      parts.first.style.marginBottom = '0';
+      parts.first.style.breakInside = 'auto';
+      parts.first.style.pageBreakInside = 'auto';
+      parts.rest.style.marginTop = '0';
+      parts.rest.style.breakInside = 'auto';
+      parts.rest.style.pageBreakInside = 'auto';
+    }
+    if (measHost) measHost.parentNode.removeChild(measHost);
+    return parts;
   }
 
-  // 在 probe（已含 numHTML + 全文、同宽）上按字符二分，返回使高度≤h 的最大截断长度
-  function findCharCut(probe, numHTML, txt, h){
-    if (probe.getBoundingClientRect().height <= h) return txt.length;
-    var lo = 0, hi = txt.length, best = 0;
-    while (lo < hi){
-      var mid = (lo + hi) >> 1;
-      probe.innerHTML = numHTML;
-      probe.appendChild(document.createTextNode(txt.slice(0, mid)));
-      var hh = probe.getBoundingClientRect().height;
-      if (hh <= h){ best = mid; lo = mid + 1; }
-      else hi = mid;
+  // 在 node 内按「行边界」找切点：返回 {node: 文本节点, offset}，使前段渲染高度 ≤ h。
+  // 用 Range.getClientRects() 取最后一行的底边量高度，二分定位 ——
+  // 切点必然落在行边界上，不会把一行字劈成上下两半，也不依赖任何 DOM 结构假设。
+  function findLineCut(node, h){
+    var NF = window.NodeFilter || { SHOW_TEXT: 4 };
+    var walker = document.createTreeWalker(node, NF.SHOW_TEXT, null, false);
+    var tns = [], n, i;
+    while ((n = walker.nextNode())) if (n.textContent.length) tns.push(n);
+    if (!tns.length) return null;
+    var total = 0;
+    for (i = 0; i < tns.length; i++) total += tns[i].textContent.length;
+    if (total < 2) return null;
+
+    var cs = window.getComputedStyle(node);
+    var padT = parseFloat(cs.paddingTop) || 0;
+    var bdT = parseFloat(cs.borderTopWidth) || 0;
+    var base = node.getBoundingClientRect().top + padT + bdT;
+
+    // 全局字符偏移 -> {node, offset}
+    function at(g){
+      var rem = g;
+      for (var i = 0; i < tns.length; i++){
+        if (rem <= tns[i].textContent.length) return { node: tns[i], offset: rem };
+        rem -= tns[i].textContent.length;
+      }
+      var last = tns[tns.length - 1];
+      return { node: last, offset: last.textContent.length };
     }
-    return best;
+    function heightAt(g){
+      if (g <= 0) return 0;
+      var p = at(g);
+      var r = document.createRange();
+      try { r.setStart(node, 0); r.setEnd(p.node, p.offset); }
+      catch (e){ return 0; }
+      var rects = r.getClientRects();
+      if (!rects || !rects.length) return 0;
+      return rects[rects.length - 1].bottom - base;
+    }
+
+    var lo = 1, hi = total - 1, best = 0;
+    while (lo <= hi){
+      var mid = (lo + hi) >> 1;
+      if (heightAt(mid) <= h){ best = mid; lo = mid + 1; }
+      else hi = mid - 1;
+    }
+    if (best <= 0 || best >= total) return null;
+
+    // 切点校正：避免把标点符号单独留在下一行开头。
+    // 如果切点正好落在一个前置性标点（逗号、句号等）前面，就往后挪，
+    // 让标点留在上一行；只要挪完仍在本行高度内就继续挪。
+    var PUNCT = /[，。！？、；：）》」』】〕］｝〉》」』】]/;
+    while (best < total){
+      var tmp = at(best);
+      var ch = tmp.node.textContent.charAt(tmp.offset);
+      if (!ch || !PUNCT.test(ch)) break;
+      if (heightAt(best + 1) > h) break;
+      best++;
+    }
+    return at(best);
   }
 
   // 按给定的页高把连续流切成一页页。gran 用来临时覆盖换页粒度
-  function cut(flow, lim, gran){
+  function cut(flow, lim, gran, host){
     var atoms = collect(flow), i;
     if (!atoms.length) return [];
 
@@ -1897,13 +2036,19 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     // 块划多细由换页方式决定 —— 这也是「换页选项」真正起作用的地方。
     //   whole  整道题一块：题目绝不跨页，页尾可能留白
     //   smart  题干按段落、选项按行成块：既不散架也不大片留白（默认）
-    //   ultra  每个原子一块：页面填得最满，段落可能被劈开
+    //   ultra  在 smart 基础上填得更满：段落可以从行缝里多撕几行，
+    //          「后面还有一大块、本页尾巴这点空间塞不下」时还会回头把上一段让出几行
     var blocks = [], curBlk = null, curKey = null, md = gran || MODE;
     for (i = 0; i < list.length; i++){
       var x = list[i], key;
-      if (md === 'ultra') key = 'u' + i;
+      // 同一行的选项永远整行走（智能平衡 / 极致省纸都如此）。
+      // 横向排的短选项（grid-2/4）按「整行」成块；竖向排的长选项（grid-1）
+      // 每行本就只有一个选项，按行成块即让每个长选项各自独立翻页，
+      // 既不把 A/B/C/D 拆散，又能让页尾空间继续接后面的内容，消除大留白。
+      if (x.slot === 'opt' && md === 'smart') key = 'r' + x.qid + '_' + x.row;
+      else if (x.slot === 'opt' && md === 'ultra') key = 'r' + x.qid + '_' + x.row;
       else if (md === 'whole') key = x.qid ? ('q' + x.qid) : ('t' + i);
-      else if (x.slot === 'opt') key = 'r' + x.qid + '_' + x.row;
+      else if (md === 'ultra') key = 'u' + i;
       else if (x.slot === 'stem') key = 's' + x.qid + '_' + i;
       else if (x.slot === 'mat-head')
         key = (i + 1 < list.length && list[i + 1].slot === 'mat') ? ('x' + (i + 1)) : ('x' + i);
@@ -1917,64 +2062,157 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       }
     }
 
-    // pageTop = 当前页首个内容相对 flow 顶边的偏移；每次翻页都重新归位，
-    // 这样 bottom = b.top + b.h - pageTop 永远相对「本页起点」算，
-    // 绝不会被上一页残留的 base 污染（旧逻辑因此在某些章节边界产生大段空白）。
-    var pages = [], cur = mkPage(), st = {}, used = 0, pageTop = list[0].top;
-    function flushPage(){ pages.push(cur); cur = mkPage(); st = {}; used = 0; pageTop = null; }
+    // ---------------- 装页：真放进去、真量一次 ----------------
+    // 旧逻辑拿 flow 里量好的 top/h 去估算「这块放进去会到哪儿」，可 place() 搬动
+    // 原子时会重建 .fp-q / .fp-stem / .fp-opts / .fp-mat 外壳 —— 外壳自己的
+    // padding / gap，以及被外壳打断的外边距折叠，全都不在那个估算里。
+    // 估少了内容顶出页面，估多了页尾空一大截。用户反馈的两件事都出在这儿：
+    //   · 「还剩五六行留白，选项却整个甩到了下一页」—— 估算把块算高了；
+    //   · 「预览里改成极致省纸后出现大段空白」—— 顶出的页逼着 paginate 收紧
+    //     页高，一收紧接着全篇每一页都跟着矮下去。
+    // 现在改成：放进当前页 → 量一次真实高度 → 放不下就撤回来翻页。
+    var pages = [], cur = mkPage(), st = {}, used = 0;
+    // 本页已经装进去的块（按序），极致省纸回头让位时用得上；翻页即清空
+    var pageBlocks = [];
+    host.appendChild(cur);      // 页必须挂在文档里，否则量到的高度恒为 0
 
-    // 把一段文字从「剩余高度」处按行边界撕开：首段留当前页，续段去下一页
-    function splitAndPlace(a, remain){
-      var parts = splitTextAtom(a, remain);
-      if (!parts) return false;
-      place(cur.firstChild, { node: parts.first, qid: a.qid, slot: a.slot, fig: a.fig, grid: a.grid, mid: a.mid, own: a.own, hang: a.hang, ohang: a.ohang }, st);
-      flushPage();
-      place(cur.firstChild, { node: parts.rest, qid: a.qid, slot: a.slot, fig: a.fig, grid: a.grid, mid: a.mid, own: a.own, hang: a.hang, ohang: a.ohang }, st);
-      pageTop = a.top + parts.h;
-      used = Math.max(0, a.h - parts.h);
-      return true;
+    // 本页内容真实高度：取首末子元素的跨度，再补回首元素的外上边距。
+    // 不能直接量 .fp-pbody —— 它是 flex:1，内容不满时被拉伸成整页高，
+    // 量出来永远等于 BODY_H，真实留白会被完全抹平。
+    function pageH(){
+      var b = cur.firstChild, kids = b.children;
+      if (!kids.length) return 0;
+      var f = kids[0], l = kids[kids.length - 1];
+      var mt = parseFloat(window.getComputedStyle(f).marginTop) || 0;
+      return l.getBoundingClientRect().bottom - f.getBoundingClientRect().top + (mt > 0 ? mt : 0);
     }
+
+    function flushPage(){
+      pages.push(cur);
+      cur = mkPage(); host.appendChild(cur);
+      st = {}; used = 0; pageBlocks = [];
+    }
+
+    // 把刚放进去的原子撤回来：摘掉节点、清掉空壳、重置外壳缓存。
+    // 清空 st 是关键 —— 下一次 place() 会重新建壳，不会留下空 .fp-q 占着位置。
+    function unplace(items){
+      // 注意 items 里装的是原子对象，真正的节点在 .node 上
+      for (var k = items.length - 1; k >= 0; k--){
+        var n = items[k] && items[k].node;
+        if (n && n.parentNode) n.parentNode.removeChild(n);
+      }
+      var sh = cur.firstChild.querySelectorAll('.fp-q,.fp-stem,.fp-opts,.fp-mat');
+      for (k = 0; k < sh.length; k++)
+        if (!sh[k].children.length && sh[k].parentNode) sh[k].parentNode.removeChild(sh[k]);
+      for (var key in st) delete st[key];
+      used = pageH();
+    }
+
+    // 换个节点、其余元信息照抄：撕开段落时把 first / rest 续回队列用得上
+    function reatom(a, node){
+      return { node: node, qid: a.qid, slot: a.slot, fig: a.fig, grid: a.grid,
+               mid: a.mid, own: a.own, hang: a.hang, ohang: a.ohang };
+    }
+
+    function put(items){
+      for (var y = 0; y < items.length; y++) place(cur.firstChild, items[y], st);
+      return pageH();
+    }
+
+    // 撕开填缝的门槛：剩余空间太窄就不撕了，免得把段落切得七零八落。
+    // 极致省纸门槛压到 8%，智能平衡留 20% —— 这就是两档省纸程度的分界。
+    var SPLIT_MIN = (md === 'ultra') ? 0.08 : 0.2;
 
     for (i = 0; i < blocks.length; i++){
       var b = blocks[i];
-      if (pageTop === null) pageTop = b.top;            // 本页第一块的顶边
-      var bottom = b.top + b.h - pageTop;
-      var remain = lim - used;
+      var h0 = used;                       // 放这一块之前，本页已经占掉的高度
+      var h1 = put(b.items);
 
       // 章节标题孤悬在页尾（下面还有内容）才整段挪到下一页，避免标题独占一页、正文被挤走。
       // 阈值取页高 82%：只有真的快到底了才挪，平时就跟普通内容一样顺流排，不留大空白。
-      if (b.items[0].slot === 'top' && used > lim * 0.82 && i + 1 < blocks.length){
-        flushPage(); pageTop = b.top; bottom = b.h; used = 0; remain = lim;
+      if (b.items[0].slot === 'top' && h0 > lim * 0.82 && h1 > lim * 0.9 && i + 1 < blocks.length){
+        unplace(b.items); flushPage();
+        used = put(b.items);
+        if (used > lim) cur.__hard = true;
+        continue;
       }
 
-      // 当前页放不下这一块 → 整块去下一页（Word 式流式：放不下就翻页，不强行拆、不留大空白）
-      if (used > 0 && bottom > lim){
-        // 单个大段文字：剩余空间还不少时从行边界撕开填缝，避免整段翻页留下大片空白
-        if (b.items.length === 1 && md !== 'whole' && remain > lim * 0.08 && canSplitNode(b.items[0].node)){
-          if (splitAndPlace(b.items[0], remain)) continue;
-        }
-        flushPage(); pageTop = b.top; bottom = b.h; used = 0; remain = lim;
-      }
+      if (h1 <= lim){ pageBlocks.push({ items: b.items, h0: h0, h1: h1 }); used = h1; continue; }
 
-      // 比一页还高的巨块（超长材料段 / 超长题干）：逐原子放置，放不下就翻页，防止顶出页面
-      if (b.h > lim){
-        if (b.items.length > 1){
-          for (var z = 0; z < b.items.length; z++){
-            var one = b.items[z];
-            if (pageTop === null) pageTop = one.top;
-            var ob = one.top + one.h - pageTop;
-            if (used > 0 && ob > lim){ flushPage(); pageTop = one.top; ob = one.h; }
-            place(cur.firstChild, one, st);
-            used = ob;
+      // ---- 本页放不下 ----
+      if (h0 > 0){
+        unplace(b.items);
+        // 单个大段文字：剩余空间还不少时就从行边界撕开填缝，
+        // 免得整段翻页在页尾留下大片空白
+        if (b.items.length === 1 && md !== 'whole'
+            && (lim - h0) > lim * SPLIT_MIN && canSplitNode(b.items[0].node)){
+          var parts = splitTextAtom(b.items[0], lim - h0);
+          if (parts){
+            place(cur.firstChild, reatom(b.items[0], parts.first), st);
+            used = pageH();
+            flushPage();
+            // 续段塞回队列：下一轮站在空白页上重新量，还放不下就再撕一次
+            blocks.splice(i + 1, 0, { items: [ reatom(b.items[0], parts.rest) ] });
+            continue;
           }
+        }
+        // 这一块自己撕不开（图片选项整行 / 表格），而本页尾巴这点缝确实塞不下：
+        // 极致省纸再试一招 —— 回头把本页最后那段文字让出几行，给这块腾地方。
+        // 「明明还剩五六行，选项却整个跑到下一页去了」多半就是卡在这儿。
+        if (md === 'ultra' && pageBlocks.length && !canSplitNode(b.items[0].node)){
+          var bH = h1 - h0;                                  // 这块实际要占的高度
+          var prev = pageBlocks[pageBlocks.length - 1];
+          var prevH = prev.h1 - prev.h0;
+          // 上一段让出之后，本页剩下的高度要能整块吃下 b，且上一段还得留得住两行
+          var room = lim - bH - prev.h0;
+          if (prev.items.length === 1 && canSplitNode(prev.items[0].node)
+              && room >= 60 && room < prevH - 20){
+            unplace(prev.items);
+            var p3 = splitTextAtom(prev.items[0], room);
+            if (p3){
+              place(cur.firstChild, reatom(prev.items[0], p3.first), st);
+              used = pageH();
+              flushPage();
+              // 让出来的那几行要排在 b 前面，否则题干和选项的顺序就颠倒了
+              blocks.splice(i, 0, { items: [ reatom(prev.items[0], p3.rest) ] });
+              continue;
+            }
+            // 撕不动就原样放回去，当什么都没发生
+            place(cur.firstChild, prev.items[0], st);
+            used = pageH();
+          }
+        }
+        flushPage();
+        used = put(b.items);
+        if (used <= lim){ pageBlocks.push({ items: b.items, h0: 0, h1: used }); continue; }
+      } else used = h1;
+
+      // ---- 连空白页都放不下：这一块比整页还高 ----
+      // 能撕就撕，能拆就拆；实在拆不动才算「物理必然超出」。
+      if (b.items.length === 1 && md !== 'whole' && canSplitNode(b.items[0].node)){
+        var p2 = splitTextAtom(b.items[0], lim);
+        if (p2){
+          unplace(b.items);
+          place(cur.firstChild, reatom(b.items[0], p2.first), st);
+          used = pageH();
+          flushPage();
+          blocks.splice(i + 1, 0, { items: [ reatom(b.items[0], p2.rest) ] });
           continue;
-        } else if (md !== 'whole' && canSplitNode(b.items[0].node)){
-          if (splitAndPlace(b.items[0], lim)) continue;
         }
       }
-
-      for (var y = 0; y < b.items.length; y++) place(cur.firstChild, b.items[y], st);
-      used = bottom;
+      if (b.items.length > 1){
+        // 拆成单原子重来：能各自塞进页的就不再顶出去了
+        unplace(b.items);
+        blocks.splice(i + 1, 0, { items: b.items.slice(1) });
+        blocks[i] = { items: [ b.items[0] ] };
+        i--;                               // 退回一格，先单独处理第一个原子
+        continue;
+      }
+      // 单个原子本身就比一页还高且切不开（超长表格 / 大图）：打个标记。
+      // 它超出是必然的，收紧页高救不了它，却会把其余每一页一起压矮。
+      cur.__hard = true;
+      pageBlocks.push({ items: b.items, h0: h0, h1: used });
+      used = pageH();
     }
     pages.push(cur);
     return pages;
@@ -2004,17 +2242,29 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
           ci[t].style.setProperty('aspect-ratio', ar.replace('/', ' / '), 'important');
       }
       host.innerHTML = '';
-      pages = cut(flow, lim, gran);
+      pages = cut(flow, lim, gran, host);
       if (!pages.length) break;
       for (i = 0; i < pages.length; i++) host.appendChild(pages[i]);
       // 切完真刀真枪量一遍：有页被顶高了就收紧页高重切
       var over = 0;
       for (i = 0; i < pages.length; i++){
-        var hh = pages[i].firstChild.getBoundingClientRect().height;
+        // 打了 __hard 的页：里面的原子本身比一页还高，收紧 lim 救不了它，
+        // 却会把其余每一页一起压矮（旧逻辑因此让全篇每页都留十几行空白），跳过
+        if (pages[i].__hard) continue;
+        // .fp-pbody 在屏幕模式下是 flex:1，内容不满时会被拉伸成整页高，
+        // 量它的高度永远等于 BODY_H，真实溢出/留白会被掩盖。
+        // 改量首末子元素的实际跨度。
+        var b = pages[i].firstChild, kids = b.children;
+        if (!kids.length) continue;
+        var hh = kids[kids.length - 1].getBoundingClientRect().bottom - kids[0].getBoundingClientRect().top;
         if (hh - BODY_H > over) over = hh - BODY_H;
       }
       if (over <= 1) break;
-      lim = Math.max(BODY_H * 0.6, lim - Math.max(4, Math.ceil(over)));
+      // 下限 0.8 只是防失控的兜底。切页改成实测之后 over 通常只剩几像素舍入误差，
+      // 一压就到下限反而是信号：说明真有拆不动的东西，再压纯属浪费版面。
+      var next = Math.max(BODY_H * 0.95, lim - Math.max(4, Math.ceil(over)));
+      if (next >= lim) break;            // 已经压到下限，再跑几轮也是白跑
+      lim = next;
       // 连着两轮都收不住，说明当前粒度下没有能塞进去的切法：
       // 「整题不拆」在这儿行不通，换最细粒度再试，宁可拆题也别把字顶出页面
       if (round >= 1) gran = 'ultra';
