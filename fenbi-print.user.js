@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.4
+// @version      1.8.7
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.4';
+    const VERSION = '1.8.7';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -666,6 +666,7 @@
     }
 
     // 立即更新：拉取最新脚本并就地重注入。设置仍从 localStorage 读取。
+    // 重注入逻辑同 1.8.1（删除固定 5 个 UI 节点后注入新版），经长期验证稳定。
     function forceUpdate() {
         const box = $('fp-update');
         if (box) renderUpdate('正在从 GitHub 拉取最新版…', 'busy');
@@ -1094,7 +1095,13 @@
         // （object-fit:contain），若按原图自然宽度（粉笔常给 200~300px 的 width 属性）估算，
         // 会把本可横排四个的小图误判成 grid-1，导致一行一个、且图片被拉满整行宽。
         const textNeed = q.maxUnits * opt.fontSize + (q.allImage ? 0 : opt.fontSize * 2.5);
-        const imgNeed = Math.min(q.maxImgW * opt.figScale / 100, 140);
+        // 1.8.6：纯图题（粉笔公式图无 width 属性 → maxImgW=0）若直接按 maxImgW 算，
+        // 会让 imgNeed=0、need=0，命中下方 need<=0 兜底 → 强制 grid-1 一行一个、页面空旷。
+        // 既然 CSS 已把图锁在 140×100 渲染框内，这里对「无可读宽度的小图」按框宽 140 反推，
+        // 让 layoutFor 仍能按真实占位选 grid-2/4。有 width 属性的大图仍走原 maxImgW 路径（封顶 140）。
+        const imgNeed = q.allImage && !q.hasBigImg
+            ? 140
+            : Math.min(q.maxImgW * opt.figScale / 100, 140);
         const need = Math.max(textNeed, imgNeed);
 
         if (need <= 0) return 'grid-1';
@@ -1471,11 +1478,12 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                     it.options.forEach((o) => {
                         // 字母是粉笔自己的节点，已经随 o.html 一起进来了，这里不再另加
                         const oh = flattenOpt(blankify(o.html));
-                        // 仅整题纯图（allImage）才按图片选项布局：图片限制在 140×100 框内。
-                        // 混合选项（如 A/B 文字 + C/D 分数图）allImage=false，保持普通
-                        // .fp-opt，靠 CSS .fp-opt:not(.fp-opt-img) img{display:inline-block}
-                        // 让图片与字母同行内对齐，避免图片掉到字母下一行（1.8.2/1.8.3 回归修复）
-                        const isImgOpt = it.allImage;
+                        // 仅「整题纯图 + 存在大图」才按图片选项布局（fp-opt-img block 模式）：
+                        //   - 混合选项（A/B 文字 + C/D 图）：allImage=false → inline，图片与字母同行
+                        //   - 纯小图题（四个都是分数公式等小尺寸 LaTeX 图）：allImage=true 但 hasBigImg=false → inline
+                        //   - 纯大图题（几何图形/图表等 width>120）：allImage=true + hasBigImg=true → block
+                        // 靠 CSS .fp-opt:not(.fp-opt-img) img{display:inline-block} 让 inline 选项的图片与字母同行
+                        const isImgOpt = it.allImage && it.hasBigImg;
                         html += `<div class="fp-opt${isImgOpt ? ' fp-opt-img' : ''}">${oh}</div>`;
                     });
                     html += `</div>`;
@@ -2652,6 +2660,9 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
      * 九、启动
      * ================================================================ */
 
+    // 注：更新/注入机制回归 1.8.1 验证过的稳定逻辑（见 forceUpdate，重注入前删 5 个固定 id 再注入新版）。
+    // 1.8.7 初版曾自行加入 __FP_INJECTED__ / destroyOldInstance 防重接管，实测在「传新版后首次更新」场景
+    // 反而造成面板叠加卡死，故回退，不引入未经长期验证的注入机制改动。
     injectStyle();
     const { panel } = buildPanel();
     bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
