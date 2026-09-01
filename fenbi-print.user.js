@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.7
+// @version      1.8.1
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.7';
+    const VERSION = '1.8.1';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -539,23 +539,19 @@
             dragging = true;
             e.preventDefault();
         });
-        // 1.8.7：拖动监听存为具名函数挂到 window，供 destroyOldInstance 精确移除，
-        // 避免每次重注入都在 document 上叠一份、引用已废弃的旧 panel 闭包。
-        window.__fpOnMove = function (e) {
+        document.addEventListener('mousemove', (e) => {
             if (!dragging) return;
             const h = panel.offsetHeight;
             panel.style.top = Math.max(0, Math.min(window.innerHeight - 50, ot + e.clientY - sy)) + 'px';
             panel.style.left = Math.max(0, Math.min(window.innerWidth - 60, ol + e.clientX - sx)) + 'px';
             void h;
-        };
-        window.__fpOnUp = function () {
+        });
+        document.addEventListener('mouseup', () => {
             if (!dragging) return;
             dragging = false;
             const r = panel.getBoundingClientRect();
             try { localStorage.setItem(STORE_POS, JSON.stringify({ top: Math.round(r.top), left: Math.round(r.left) })); } catch (e) { /* 忽略 */ }
-        };
-        document.addEventListener('mousemove', window.__fpOnMove);
-        document.addEventListener('mouseup', window.__fpOnUp);
+        });
 
         // 窗口被拉窄 / 拉矮时，把面板重新夹回可视区，避免被推出屏幕（拖拽能力保留）
         const clampPanel = () => {
@@ -670,24 +666,15 @@
     }
 
     // 立即更新：拉取最新脚本并就地重注入。设置仍从 localStorage 读取。
-    // 1.8.7：重注入前彻底拆除旧实例——清掉所有 fp- 前缀节点（旧逻辑只删 5 个固定 id，
-    // 残留节点会让新旧两版面板在同一页面叠加、事件绑错节点，表现为面板卡死、按钮/拖动全失灵）。
-    function destroyOldInstance() {
-        document.querySelectorAll('[id^="fp-"]').forEach(function (el) {
-            if (el.parentNode) el.parentNode.removeChild(el);
-        });
-        // 清掉可能叠加在 document 上的拖动监听（bindPanel 每次注入都会绑一份）
-        if (window.__fpOnMove) { document.removeEventListener('mousemove', window.__fpOnMove); window.__fpOnMove = null; }
-        if (window.__fpOnUp) { document.removeEventListener('mouseup', window.__fpOnUp); window.__fpOnUp = null; }
-        // 放开注入标记，让随后 appendChild 的新脚本 IIFE 能正常初始化（否则会被启动防重拦掉）
-        window.__FP_INJECTED__ = false;
-    }
     function forceUpdate() {
         const box = $('fp-update');
         if (box) renderUpdate('正在从 GitHub 拉取最新版…', 'busy');
         resolveLatest()
             .then(function (res) {
-                destroyOldInstance();
+                ['fp-panel', 'fp-mask', 'fp-done', 'fp-loading', 'fp-style'].forEach(function (id) {
+                    const el = document.getElementById(id);
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                });
                 const sc = document.createElement('script');
                 sc.textContent = res.txt;
                 document.head.appendChild(sc);
@@ -1103,17 +1090,8 @@
         const colW = (n) => (usable - gap * (n - 1)) / n;
 
         // 文字需求宽（另留 "A." 与右边距）+ 图片需求宽（按缩放后计）
-        // 图片需求宽用「渲染框上限 140px」封顶：选项里的小图在 CSS 里被限制在 140×100 的框内
-        // （object-fit:contain），若按原图自然宽度（粉笔常给 200~300px 的 width 属性）估算，
-        // 会把本可横排四个的小图误判成 grid-1，导致一行一个、且图片被拉满整行宽。
         const textNeed = q.maxUnits * opt.fontSize + (q.allImage ? 0 : opt.fontSize * 2.5);
-        // 1.8.6：纯图题（粉笔公式图无 width 属性 → maxImgW=0）若直接按 maxImgW 算，
-        // 会让 imgNeed=0、need=0，命中下方 need<=0 兜底 → 强制 grid-1 一行一个、页面空旷。
-        // 既然 CSS 已把图锁在 140×100 渲染框内，这里对「无可读宽度的小图」按框宽 140 反推，
-        // 让 layoutFor 仍能按真实占位选 grid-2/4。有 width 属性的大图仍走原 maxImgW 路径（封顶 140）。
-        const imgNeed = q.allImage && !q.hasBigImg
-            ? 140
-            : Math.min(q.maxImgW * opt.figScale / 100, 140);
+        const imgNeed = q.maxImgW * opt.figScale / 100;
         const need = Math.max(textNeed, imgNeed);
 
         if (need <= 0) return 'grid-1';
@@ -1305,10 +1283,7 @@ tr{break-inside:avoid;page-break-inside:avoid}
 .fp-stem p.fp-first,.fp-stem div.fp-first{text-indent:0!important}
 .fp-stem p[style*="center"],.fp-stem p[style*="right"]{text-indent:0!important}
 .fp-stem p.fp-first[style*="center"],.fp-stem p.fp-first[style*="right"]{text-indent:0!important}
-/* 选项中的图片一律限制在 140×100 框内（object-fit:contain），
-   避免某选项被误判成「文字选项」时，图片走 max-width:100% 在整行下被等比放大占半页 */
 .fp-stem img,.fp-opt img{vertical-align:middle;max-width:100%;height:auto}
-.fp-opt img{max-width:140px!important;max-height:100px!important;object-fit:contain}
 .fp-num{float:left;margin-left:calc(-1 * var(--hang,${HANG}em));margin-right:.5em;font-family:"Times New Roman","SimSun",serif}
 
 /* 选项与题干的悬挂位置对齐，换行后仍从字母右侧起排。
@@ -1356,7 +1331,7 @@ tr{break-inside:avoid;page-break-inside:avoid}
   page-break-inside:avoid;break-inside:avoid}
 .fp-opt-img .fp-ol{display:block!important;margin:0 0 6px 0!important;float:none!important;width:auto!important}
 .fp-opt-img>div,.fp-opt-img>span{display:block}
-.fp-opt-img img{display:block;width:auto;max-width:140px!important;max-height:100px!important;height:auto;margin:0;vertical-align:top;object-fit:contain}
+.fp-opt-img img{display:block;width:140px;max-width:100%;height:auto;margin:0;vertical-align:top}
 
 /* ---------- 申论作答区（格线间距由渲染层按字号内联指定） ---------- */
 .fp-space{margin:10px 0 4px;border:1px solid #c8d0da;border-radius:2px;
@@ -1490,13 +1465,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                     it.options.forEach((o) => {
                         // 字母是粉笔自己的节点，已经随 o.html 一起进来了，这里不再另加
                         const oh = flattenOpt(blankify(o.html));
-                        // 仅「整题纯图 + 存在大图」才按图片选项布局（fp-opt-img block 模式）：
-                        //   - 混合选项（A/B 文字 + C/D 图）：allImage=false → inline，图片与字母同行
-                        //   - 纯小图题（四个都是分数公式等小尺寸 LaTeX 图）：allImage=true 但 hasBigImg=false → inline
-                        //   - 纯大图题（几何图形/图表等 width>120）：allImage=true + hasBigImg=true → block
-                        // 靠 CSS .fp-opt:not(.fp-opt-img) img{display:inline-block} 让 inline 选项的图片与字母同行
-                        const isImgOpt = it.allImage && it.hasBigImg;
-                        html += `<div class="fp-opt${isImgOpt ? ' fp-opt-img' : ''}">${oh}</div>`;
+                        html += `<div class="fp-opt${it.allImage ? ' fp-opt-img' : ''}">${oh}</div>`;
                     });
                     html += `</div>`;
                 }
@@ -1788,7 +1757,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   // 可沿行边界撕开的纯文本节点（不含表格/图片/公式等不能腰斩的元素）
   function canSplitNode(node){
     return node && /^(P|DIV|SPAN|SECTION|ARTICLE|BLOCKQUOTE|CENTER|APP-FORMAT-HTML)$/i.test(node.tagName)
-      && !node.classList.contains('fp-opt')
       && !node.querySelector('img,table,svg,canvas,iframe,object,embed,math');
   }
 
@@ -1817,45 +1785,32 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     // 拆得太少或几乎整段都能放下，就不拆了
     if (h < 24 || h >= atom.h - 16) return null;
 
-    // unplace 之后节点是游离的（不在文档里），getBoundingClientRect 量出来恒为 0，
-    // findLineCut 就测不到真实行高、切点会错落到段尾，最后 rest 为空 -> 返回 null -> 整段翻页留白。
-    // 这里临时把节点挂回一个等宽的隐藏测量层，量完再摘掉（节点原本就是游离的，摘掉不影响状态）。
-    var detached = !node.ownerDocument || !node.ownerDocument.body.contains(node);
-    var measHost = null;
-    if (detached){
-      measHost = document.createElement('div');
-      measHost.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;width:'
-        + (document.getElementById('fp-flow') ? document.getElementById('fp-flow').clientWidth : 703) + 'px';
-      measHost.appendChild(node);
-      document.body.appendChild(measHost);
-    }
-    var cutRes = findLineCut(node, h);
-    var parts = null;
-    if (cutRes){
-      var first = node.cloneNode(false);
-      var rest = node.cloneNode(false);
-      var r1 = document.createRange();
-      r1.setStart(node, 0); r1.setEnd(cutRes.node, cutRes.offset);
-      first.appendChild(r1.cloneContents());
-      var r2 = document.createRange();
-      r2.setStart(cutRes.node, cutRes.offset); r2.setEnd(node, node.childNodes.length);
-      rest.appendChild(r2.cloneContents());
-      var fl = first.textContent.replace(/[\s　]/g,'').length;
-      var rl = rest.textContent.replace(/[\s　]/g,'').length;
-      parts = (fl && rl) ? { first: first, rest: rest, h: h } : null;
-    }
-    if (parts){
-      parts.first.style.maxHeight = h + 'px';
-      parts.first.style.overflow = 'hidden';
-      parts.first.style.marginBottom = '0';
-      parts.first.style.breakInside = 'auto';
-      parts.first.style.pageBreakInside = 'auto';
-      parts.rest.style.marginTop = '0';
-      parts.rest.style.breakInside = 'auto';
-      parts.rest.style.pageBreakInside = 'auto';
-    }
-    if (measHost) measHost.parentNode.removeChild(measHost);
-    return parts;
+    var cut = findLineCut(node, h);
+    if (!cut) return null;
+
+    var first = node.cloneNode(false);   // 浅克隆：保留标签 / class / 内联样式
+    var rest = node.cloneNode(false);
+    var r1 = document.createRange();
+    r1.setStart(node, 0);
+    r1.setEnd(cut.node, cut.offset);
+    first.appendChild(r1.cloneContents());
+    var r2 = document.createRange();
+    r2.setStart(cut.node, cut.offset);
+    r2.setEnd(node, node.childNodes.length);
+    rest.appendChild(r2.cloneContents());
+    // 两边都得有实际文字，否则等于没拆
+    if (!first.textContent.replace(/[\s　]/g, '').length) return null;
+    if (!rest.textContent.replace(/[\s　]/g, '').length) return null;
+
+    first.style.maxHeight = h + 'px';
+    first.style.overflow = 'hidden';
+    first.style.marginBottom = '0';
+    first.style.breakInside = 'auto';
+    first.style.pageBreakInside = 'auto';
+    rest.style.marginTop = '0';
+    rest.style.breakInside = 'auto';
+    rest.style.pageBreakInside = 'auto';
+    return { first: first, rest: rest, h: h };
   }
 
   // 在 node 内按「行边界」找切点：返回 {node: 文本节点, offset}，使前段渲染高度 ≤ h。
@@ -1904,18 +1859,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       else hi = mid - 1;
     }
     if (best <= 0 || best >= total) return null;
-
-    // 切点校正：避免把标点符号单独留在下一行开头（如句号自己成行）。
-    // 如果切点正好落在一个前置性标点（逗号、句号、分号等）前面，就往后挪，
-    // 让标点留在上一行；只要挪完仍在本行高度内就继续挪。
-    var PUNCT = /[，。！？、；：）》」』】〕］｝〉》」』】]/;
-    while (best < total){
-      var tmp = at(best);
-      var ch = tmp.node.textContent.charAt(tmp.offset);
-      if (!ch || !PUNCT.test(ch)) break;
-      if (heightAt(best + 1) > h) break;
-      best++;
-    }
     return at(best);
   }
 
@@ -2198,18 +2141,13 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         // 打了 __hard 的页：里面的原子本身比一页还高，收紧 lim 救不了它，
         // 却会把其余每一页一起压矮（旧逻辑因此让全篇每页都留十几行空白），跳过
         if (pages[i].__hard) continue;
-        // .fp-pbody 在屏幕模式下是 flex:1，内容不满时会被拉伸成整页高，
-        // 量它的高度永远等于 BODY_H，真实溢出/留白会被掩盖。
-        // 改量首末子元素的实际跨度。
-        var b = pages[i].firstChild, kids = b.children;
-        if (!kids.length) continue;
-        var hh = kids[kids.length - 1].getBoundingClientRect().bottom - kids[0].getBoundingClientRect().top;
+        var hh = pages[i].firstChild.getBoundingClientRect().height;
         if (hh - BODY_H > over) over = hh - BODY_H;
       }
       if (over <= 1) break;
-      // 下限 0.95 只是防失控的兜底。切页改成实测之后 over 通常只剩几像素舍入误差，
+      // 下限 0.8 只是防失控的兜底。切页改成实测之后 over 通常只剩几像素舍入误差，
       // 一压就到下限反而是信号：说明真有拆不动的东西，再压纯属浪费版面。
-      var next = Math.max(BODY_H * 0.95, lim - Math.max(4, Math.ceil(over)));
+      var next = Math.max(BODY_H * 0.8, lim - Math.max(4, Math.ceil(over)));
       if (next >= lim) break;            // 已经压到下限，再跑几轮也是白跑
       lim = next;
       // 连着两轮都收不住，说明当前粒度下没有能塞进去的切法：
@@ -2227,10 +2165,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     var tip = document.getElementById('fp-loading');
     if (tip) tip.style.display = 'none';
   }
-
-  // 暴露「重切」钩子：预览里渲染稳定后由主页面自动调一次，等价于手动切换一次换页模式，
-  // 用干净的页码状态消除竞态空白，且不动 renderPreview 结构（不跳页、不重建 iframe）
-  window.__fpRetighten = paginate;
 
   // 等字体就位再量高度，否则中文字体一换，量出来的高度全是错的
   function layout(){
@@ -2491,7 +2425,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         });
     }
 
-    function renderPreview(state, isTighten) {
+    function renderPreview(state) {
         const ov = $('fp-prev');
         if (!ov) return;
         const frame = ov.querySelector('iframe');
@@ -2514,21 +2448,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                     const max = w.document.documentElement.scrollHeight - w.innerHeight;
                     w.scrollTo(0, Math.max(0, Math.min(y, max)));
                 } catch (e) {}
-                // 首次渲染稳定后（图片/字体已就位），自动再切一次消除竞态空白 ——
-                // 等价于手动切换一次换页模式，但复用同一 iframe、保留滚动位置，不跳页。
-                // 只触发一次（isTighten 标记防止递归），用 setTimeout 等文档真正安静下来。
-                if (!isTighten) {
-                    setTimeout(() => {
-                        try {
-                            if (ov.contains(frame) && frame.contentWindow.__fpRetighten) {
-                                frame.contentWindow.__fpRetighten();
-                                // 重切后把滚动位置对齐到刚才的位置，避免跳页
-                                const wy = frame.contentWindow.scrollY || 0;
-                                frame.contentWindow.scrollTo(0, Math.max(0, Math.min(y, wy + 0)));
-                            }
-                        } catch (e) {}
-                    }, 400);
-                }
                 return;
             }
             setTimeout(() => restore(tries + 1), 60);
@@ -2671,18 +2590,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     /* ==================================================================
      * 九、启动
      * ================================================================ */
-
-    // 1.8.7：防多版本在同一页面叠加（旧版书签/缓存会先注入一个旧面板，新版后到需接管）。
-    // 做法：新版启动时**先拆掉 DOM 里任何已存在的 fp- 面板**（无论它是什么版本，
-    // 旧版脚本不认版本、不会自己让位，只能由新版靠 DOM 直接接管），再初始化自己。
-    // 这样旧版（如已分发的 1.8.1）先到占着面板，1.8.7 后到会把它拆掉、建自己的，页面最终只剩最新版。
-    // 先判「同版本重复注入」（书签连点）轻量拦截，避免无限重建；不同版本则拆旧接管。
-    if (window.__FP_INJECTED__ && window.__FP_VERSION__ === (extractVersion(VERSION) || VERSION)) {
-        return; // 同版本且已建过，跳过（防连点狂建）
-    }
-    destroyOldInstance();
-    window.__FP_INJECTED__ = true;
-    window.__FP_VERSION__ = extractVersion(VERSION) || VERSION;
 
     injectStyle();
     const { panel } = buildPanel();
