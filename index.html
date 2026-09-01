@@ -166,7 +166,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 <div class="wrap">
 
 <header>
-  <h1>粉笔试卷排版打印<span class="badge">v1.7.3</span></h1>
+  <h1>粉笔试卷排版打印<span class="badge">v1.8.1</span></h1>
   <div class="sub">把粉笔在线试卷排成 A4 真卷：题号悬挂缩进、自动分页、题目可跨页，直接打印或导出 PDF</div>
 </header>
 
@@ -298,7 +298,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
               <div class="gd-modal-bar"><span class="cir"></span><span class="cir"></span><span class="cir"></span><span class="mt">Tampermonkey</span></div>
               <div class="gd-modal-body">
                 <div class="name">粉笔试卷排版打印</div>
-                <div class="row">版本 <span class="ver">v1.7.3</span></div>
+                <div class="row">版本 <span class="ver">v1.8.1</span></div>
                 <div class="row">作者：火焰百合　来源：GitHub</div>
                 <div class="row">将安装到此网页：fenbi.com</div>
               </div>
@@ -389,8 +389,21 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 
 <div class="card">
   <h2><span class="n g">6</span>更新日志</h2>
-  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.7.3）：</p>
+  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.8.1）：</p>
   <div class="cl">
+    <div class="cl-v">v1.8.1<span>2026-09-01</span></div>
+    <ul>
+      <li><b>修复题数/题号偶发显示「null」</b>：进入做题页后「共 X 题 / Y 份材料」提示、以及生成试卷中的题号，偶发出现字面量「null」；已加固状态文字与题号的取值逻辑，空值不再被渲染成 null（自动降级为空，不显示多余字样）</li>
+    </ul>
+    <div class="cl-v">v1.8.0<span>2026-09-01</span></div>
+    <ul>
+      <li><b>新增「调整预览」功能</b>：点「调整预览」先解析一次试卷，渲染进全屏预览浮层；在预览内可实时调整字号、行距、题目间距、大图缩放、换页方式、页边距、封面页等参数并即时重排（所见即所得），无需反复返回面板；预览内支持直接打印、导出 PDF，或「保存并返回」把当前参数写回面板并持久化</li>
+      <li><b>优化面板布局</b>：试卷标题输入框与「排版并打印」按钮改为同行排布，标题框宽度收窄，面板更紧凑</li>
+    </ul>
+    <div class="cl-v">v1.7.4<span>2026-09-01</span></div>
+    <ul>
+      <li><b>优化设置面板显示细节</b>：提升整体观感与一致性，修若干界面显示问题</li>
+    </ul>
     <div class="cl-v">v1.7.0–v1.7.3<span>2026-09-01</span></div>
     <ul>
       <li><b>修复面板样式相关的若干显示问题</b>：统一界面配色与交互细节，优化设置面板的整体观感</li>
@@ -451,7 +464,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 </div>
 
 <footer>
-  当前版本 v1.7.3 · 更新于 2026-09-01
+  当前版本 v1.8.1 · 更新于 2026-09-01
   <div class="foot-stat">总访问 <span class="busuanzi-value" id="busuanzi_value_site_pv">—</span> 次</div>
   <div class="foot-contact"><a href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a></div>
 </footer>
