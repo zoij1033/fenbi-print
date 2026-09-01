@@ -166,7 +166,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 <div class="wrap">
 
 <header>
-  <h1>粉笔试卷排版打印<span class="badge">v1.8.1</span></h1>
+  <h1>粉笔试卷排版打印<span class="badge">v1.8.6</span></h1>
   <div class="sub">把粉笔在线试卷排成 A4 真卷：题号悬挂缩进、自动分页、题目可跨页，直接打印或导出 PDF</div>
 </header>
 
@@ -298,7 +298,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
               <div class="gd-modal-bar"><span class="cir"></span><span class="cir"></span><span class="cir"></span><span class="mt">Tampermonkey</span></div>
               <div class="gd-modal-body">
                 <div class="name">粉笔试卷排版打印</div>
-                <div class="row">版本 <span class="ver">v1.8.1</span></div>
+                <div class="row">版本 <span class="ver">v1.8.2</span></div>
                 <div class="row">作者：火焰百合　来源：GitHub</div>
                 <div class="row">将安装到此网页：fenbi.com</div>
               </div>
@@ -389,8 +389,29 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 
 <div class="card">
   <h2><span class="n g">6</span>更新日志</h2>
-  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.8.1）：</p>
+  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.8.6）：</p>
   <div class="cl">
+    <div class="cl-v">v1.8.6<span>2026-09-01</span></div>
+    <ul>
+      <li><b>修复纯公式图选项被强制一行一个、页面空旷</b>：四个选项全是数学公式图片（粉笔以无 width 属性的小图代替公式）时，因文字宽度与图片宽度两个信号同时归零，列数估算命中兜底分支被强制 grid-1，每个选项独占一行且右侧大片留白；现对「纯图且无可读大图宽」的题按 CSS 渲染框宽（140px）反推所需宽度，使其正确并排为 grid-4（纯文字 / 混合 / 有 width 大图题行为不变）</li>
+    </ul>
+    <div class="cl-v">v1.8.5<span>2026-09-01</span></div>
+    <ul>
+      <li><b>修复纯小分数图选项图片仍掉到字母下一行</b>：当整题四个选项全为小尺寸 LaTeX 公式图（无 width 属性 → 不算大图）时，v1.8.4 的纯图判定仍会触发 block 竖排布局使图片换行；将选项图片判定收紧为「整题纯图 <b>且</b> 存在大图」才走 block 布局，纯小图题恢复 inline 同行（真机验证通过）</li>
+    </ul>
+    <div class="cl-v">v1.8.4<span>2026-09-01</span></div>
+    <ul>
+      <li><b>修复混合选项图片掉到字母下一行</b>：v1.8.3 的选项图片判定过宽（只要含 &lt;img&gt; 就走 block 竖排），导致 A/B 文字 + C/D 分数图的混合题图片换行；改为只看整题是否纯图，混合题恢复图文同行</li>
+    </ul>
+    <div class="cl-v">v1.8.3<span>2026-09-01</span></div>
+    <ul>
+      <li><b>调整选项图片布局判定（引入后续回归，已于 v1.8.4 修正）</b>：修改 isImgOpt 判定逻辑以统一图片选项的对齐方式；但该写法对混合图文题判定过宽，导致 C/D 选项图片掉到字母下一行，属已知回归，v1.8.4 已修复</li>
+    </ul>
+    <div class="cl-v">v1.8.2<span>2026-09-01</span></div>
+    <ul>
+      <li><b>根治「页尾大留白」与「极致省纸预览大段空白」两处分页问题</b>：重写装页逻辑为「试放 + 实测」——每块内容真正放进页面后再量一次真实高度，放不下就撤回来翻页，不再用流里的估算高度硬套（旧估算会漏算外壳 padding 与间距，导致明明还剩几行、却把题干或选项整段甩到下一页）；含下划线的言语理解题长段落现在也能在行边界处续排、不再整段翻页；预览里切换「极致省纸」同样从零重建并重排，不再残留大段空白</li>
+      <li><b>优化图片/公式选项对齐</b>：图形/公式选项保持与文字选项一致的横向排列，字母圈与图片均顶端对齐；对又窄又高的公式图（如分数）增加 140×100 的最大显示框，防止被 inline width 拉成细长竖条占满半页</li>
+    </ul>
     <div class="cl-v">v1.8.1<span>2026-09-01</span></div>
     <ul>
       <li><b>修复题数/题号偶发显示「null」</b>：进入做题页后「共 X 题 / Y 份材料」提示、以及生成试卷中的题号，偶发出现字面量「null」；已加固状态文字与题号的取值逻辑，空值不再被渲染成 null（自动降级为空，不显示多余字样）</li>
@@ -464,7 +485,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 </div>
 
 <footer>
-  当前版本 v1.8.1 · 更新于 2026-09-01
+  当前版本 v1.8.6 · 更新于 2026-09-01
   <div class="foot-stat">总访问 <span class="busuanzi-value" id="busuanzi_value_site_pv">—</span> 次</div>
   <div class="foot-contact"><a href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a></div>
 </footer>
