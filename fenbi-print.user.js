@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.7.4
+// @version      1.8.0
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.7.4';
+    const VERSION = '1.8.0';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -340,10 +340,16 @@
 .fp-check input{width:15px;height:15px;accent-color:#648CFC;margin:0;background:#22262e}
 .fp-input[type=number]::-webkit-inner-spin-button,.fp-input[type=number]::-webkit-outer-spin-button{color:#648CFC;opacity:1}
 .fp-hint{font-size:11px;color:#6b7583;margin-top:4px;line-height:1.5}
-.fp-stat{font-size:12px;color:#8b95a3;margin-bottom:11px;line-height:1.6;min-height:18px}
+.fp-stat{font-size:12px;color:#8b95a3;margin-bottom:0;line-height:1.6;min-height:0}
+/* 状态文字（共 X 题 / Y 份材料 等）出现时才在下方撑出间距，
+   把按钮推下去；空着时不占空间，不会提前预留一块空白给提示词 */
+.fp-stat:not(:empty){margin-bottom:12px}
 .fp-stat b{color:#4dd0e1}
-.fp-btns{display:flex;gap:8px;margin-bottom:4px}
-.fp-btn{flex:2;padding:11px;background:#2F7FE0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;transition:background .15s}
+.fp-preview-btn{width:100%;padding:13px;background:#252a33;color:#a8b2bf;border:1px solid #3a4049;border-radius:8px;cursor:pointer;font-size:15px;font-weight:700;font-family:inherit;transition:background .15s;margin-bottom:14px}
+.fp-preview-btn:hover{background:#2f353f;color:#d7dce3}
+.fp-preview-btn:active{transform:translateY(1px)}
+.fp-btns{display:flex;gap:8px;margin-bottom:12px}
+.fp-btn{flex:2;background:#2F7FE0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;font-family:inherit;transition:background .15s}
 .fp-btn:hover{background:#4f9af0}
 .fp-btn:active{transform:translateY(1px)}
 .fp-btn:disabled{background:#3a4049;color:#6b7583;cursor:wait}
@@ -364,6 +370,27 @@
 .fp-update.busy a,.fp-update.busy i{display:none}
 .fp-update.err{background:#2b1a1a;border-color:#6b3030;color:#f0a0a0}
 .fp-update.err a{display:none}
+
+/* ===== 调整预览浮层 ===== */
+.fp-prev{position:fixed;inset:0;z-index:9999996;background:rgba(12,14,17,.94);display:none;flex-direction:column;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.fp-prev.show{display:flex}
+.fp-prev-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 16px;background:#181b21;border-bottom:1px solid #2e333d}
+.fp-prev-brand{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;color:#e6eaf0;white-space:nowrap}
+.fp-prev-brand .fp-emoji{font-size:16px}
+.fp-prev-ctl{display:flex;align-items:center;gap:5px}
+.fp-prev-ctl label{font-size:11px;color:#8b95a3;white-space:nowrap}
+.fp-prev-ctl input[type=number]{width:56px;padding:5px 7px;box-sizing:border-box;border:1px solid #3a4049;border-radius:6px;font-size:12px;color:#e6eaf0;background:#22262e;outline:none;font-family:inherit}
+.fp-prev-ctl input[type=number]:focus,.fp-prev-ctl select:focus{border-color:#4dd0e1;box-shadow:0 0 0 3px rgba(77,208,225,.15)}
+.fp-prev-ctl select{width:auto;padding:5px 24px 5px 8px;box-sizing:border-box;border:1px solid #3a4049;border-radius:6px;font-size:12px;color:#e6eaf0;background:#22262e;outline:none;font-family:inherit;appearance:none;background-image:linear-gradient(45deg,transparent 50%,#8b95a3 50%),linear-gradient(135deg,#8b95a3 50%,transparent 50%);background-position:calc(100% - 13px) 50%,calc(100% - 8px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.fp-prev-ctl input[type=checkbox]{width:14px;height:14px;accent-color:#648CFC;margin:0}
+.fp-prev-sp{flex:1 1 auto}
+.fp-prev-bar .fp-btn{background:#2F7FE0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;padding:9px 16px;white-space:nowrap}
+.fp-prev-bar .fp-btn:hover{background:#4f9af0}
+.fp-prev-bar .fp-btn2{background:#252a33;color:#a8b2bf;border:1px solid #3a4049;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;padding:9px 14px;white-space:nowrap}
+.fp-prev-bar .fp-btn2:hover{background:#2f353f;color:#d7dce3}
+.fp-prev-x{flex:0 0 auto;font-size:18px;color:#6b7583;cursor:pointer;padding:4px 9px;border-radius:6px;line-height:1}
+.fp-prev-x:hover{color:#e6eaf0;background:#2b323d}
+.fp-prev-frame{flex:1 1 auto;width:100%;border:0;background:#e5e7eb}
 `;
         const el = document.createElement('style');
         el.id = 'fp-style';
@@ -398,13 +425,16 @@
 
 <div class="fp-btns">
     <button id="fp-print" class="fp-btn">排版并打印</button>
-    <button id="fp-save" class="fp-btn2" title="导出为 PDF：浏览器会弹出打印对话框，目标选「另存为 PDF」即可保存">导出PDF</button>
+    <button id="fp-save" class="fp-btn2" title="导出为 PDF：浏览器会弹出打印对话框，目标选「另存为 PDF」即可保存">导出为 PDF</button>
 </div>
 
+<div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-cover" checked> 打印封面页</label>
+    <div class="fp-hint">默认勾选</div>
+</div>
+<div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
+
 <div class="fp-adv" id="fp-adv">
-    <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-cover" checked> 打印封面页</label>
-        <div class="fp-hint">默认勾选</div>
-    </div>
+    <button id="fp-preview" class="fp-preview-btn" title="先生成可滚动预览，在预览里实时调字号 / 行距 / 间距 / 页边距，满意后再打印或导出">文本调整预览</button>
     <div class="fp-field">
         <label class="fp-label">页边距</label>
         <select id="fp-margin" class="fp-select">
@@ -454,7 +484,6 @@
         <input type="number" id="fp-countdown" class="fp-input">
         <div class="fp-hint">打印对话框一关闭就开始倒数，到时自动关闭页面；期间点「留在页面」可取消，填 0 则不自动关闭</div>
     </div>
-    <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-autoPrint"> 生成后自动唤起打印</label></div>
     <button id="fp-reset" class="fp-btn2" style="width:100%">恢复默认设置</button>
     <button id="fp-check" class="fp-btn2" style="width:100%;margin-top:8px">检查更新</button>
 </div>
@@ -473,7 +502,7 @@
         if (sel && box) box.style.display = sel.value === 'fixed' ? 'block' : 'none';
     }
 
-    function bindPanel(panel, mask, onPrint, onSave) {
+    function bindPanel(panel, mask, onPrint, onSave, onPreview) {
         // 折叠
         const adv = $('fp-adv'), toggle = $('fp-toggle');
         toggle.addEventListener('click', () => {
@@ -521,6 +550,24 @@
             try { localStorage.setItem(STORE_POS, JSON.stringify({ top: Math.round(r.top), left: Math.round(r.left) })); } catch (e) { /* 忽略 */ }
         });
 
+        // 窗口被拉窄 / 拉矮时，把面板重新夹回可视区，避免被推出屏幕（拖拽能力保留）
+        const clampPanel = () => {
+            if (panel.style.display === 'none') return;
+            const w = panel.offsetWidth, h = panel.offsetHeight;
+            const r = panel.getBoundingClientRect();
+            let left = r.left, top = r.top, changed = false;
+            if (left + w > window.innerWidth - 4) { left = Math.max(4, window.innerWidth - w - 4); changed = true; }
+            if (left < 4) { left = 4; changed = true; }
+            if (top + h > window.innerHeight - 4) { top = Math.max(4, window.innerHeight - h - 4); changed = true; }
+            if (top < 4) { top = 4; changed = true; }
+            if (changed) {
+                panel.style.right = 'auto';
+                panel.style.left = left + 'px';
+                panel.style.top = top + 'px';
+            }
+        };
+        window.addEventListener('resize', clampPanel);
+
         // 设置变更即存
         panel.querySelectorAll('input, select').forEach((el) => {
             el.addEventListener('input', saveSettings);
@@ -538,6 +585,8 @@
 
         $('fp-print').addEventListener('click', onPrint);
         $('fp-save').addEventListener('click', onSave);
+        const pv = $('fp-preview');
+        if (pv) pv.addEventListener('click', onPreview);
     }
 
     function setStatus(html) { const el = $('fp-stat'); if (el) el.innerHTML = html; }
@@ -766,7 +815,7 @@
     }
 
     // ---- 行测：滚动加载后直接读取 ----
-    async function extractXingce(onProgress) {
+    async function extractXingce(onProgress, quick) {
         onProgress && onProgress('正在加载全部题目…');
 
         const scroller = findScroller();
@@ -774,13 +823,14 @@
         const countTis = () => (document.querySelector('.tis-container') || document.body).querySelectorAll('app-ti').length;
 
         let lastH = -1, lastC = -1, stall = 0;
-        for (let i = 0; i < 25; i++) {
+        const maxIter = quick ? 6 : 25;
+        for (let i = 0; i < maxIter; i++) {
             try {
                 if (isWin) window.scrollTo(0, document.documentElement.scrollHeight);
                 else scroller.scrollTop = scroller.scrollHeight;
                 window.scrollTo(0, document.documentElement.scrollHeight);
             } catch (e) { /* 忽略 */ }
-            await sleep(200);
+            await sleep(quick ? 120 : 200);
 
             const h = isWin ? document.documentElement.scrollHeight : scroller.scrollHeight;
             const c = countTis();
@@ -1449,13 +1499,15 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         html += `
 <script>
 (function(){
+  var PREVIEW = ${meta.preview ? 'true' : 'false'};
   var RATIO = ${opt.figScale} / 100;
   if (!(RATIO > 0 && RATIO <= 1)) RATIO = 0.65;
-  var CD = ${cd};
-  // 输出方式：'print' = 点「排版并打印」，'save' = 点「导出PDF」。
+  // 预览模式下不自动关页面（iframe 里 window.close 本就无效，统一置 0 更稳）
+  var CD = ${meta.preview ? 0 : cd};
+  // 输出方式：'print' = 点「排版并打印」，'save' = 点「导出PDF」，'preview' = 调整预览（不打印）。
   // 传入而不是事后猜 —— afterprint 只告诉你对话框关了，猜不出用户在里面选的是
   // 打印机还是「另存为 PDF」。按钮是自己点的，这个意图只有面板那一侧才知道。
-  var OUT = ${JSON.stringify(meta.output === 'save' ? 'save' : 'print')};
+  var OUT = ${JSON.stringify(meta.preview ? 'preview' : (meta.output === 'save' ? 'save' : 'print'))};
 
   // 大图按比例缩小，小图不动；必须幂等，否则轮询会把图越缩越小
   function scaleFigures(){
@@ -1693,32 +1745,85 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       && !node.querySelector('img,table,svg,canvas,iframe,object,embed,math');
   }
 
-  // 把一个大段文字节点从剩余高度处撕开，返回 {first, rest, h}。
-  // first 带 max-height 放在当前页尾部；rest 用负 margin 顶上去，在下一页显示剩余部分。
-  // h 按行高取整，尽量避免从一行正中间切断。
+  // 把一段长文字从「剩余高度」处按行边界真实切成两段：
+  // first 含顶部前 N 行（带题号），rest 含第 N+1 行起的剩余文本（不带题号）。
+  // 关键：直接切文本内容，而不是「克隆整段 + 负 margin 续接」——
+  // 旧写法里 rest 是完整克隆，靠负 margin 把上半截藏起来；一旦没被父容器精确裁掉，
+  // 续接段就会把题目前 N 行原样露出来，造成题目文本重复（Q4、Q64 均复现此问题）。
   function splitTextAtom(atom, remain){
     var node = atom.node;
     if (!canSplitNode(node)) return null;
     var cs = window.getComputedStyle(node);
-    var lh = parseFloat(cs.lineHeight);
-    var fs = parseFloat(cs.fontSize);
-    if (isNaN(lh) || lh <= 0) lh = (fs || 16) * 1.6;
-    if (isNaN(lh) || lh <= 0) return null;
+    var lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) || 16) * 1.6;
+    if (!(lh > 0)) return null;
     var lines = Math.max(1, Math.floor(remain / lh));
     var h = Math.floor(lines * lh);
     // 拆得太少或几乎整段都能放下，就不拆了
     if (h < 24 || h >= atom.h - 16) return null;
-    var first = node.cloneNode(true);
+    // 含题号之外的内联元素（如下划线 <u>）时不按字符切，整块移到下一页，避免结构错乱
+    var numEl = node.querySelector('.fp-num');
+    var extraEls = node.querySelectorAll('*').length - (numEl ? 1 : 0);
+    if (extraEls > 0) return null;
+
+    var numHTML = numEl ? numEl.outerHTML : '';
+    var txt = node.textContent;
+    if (numEl) txt = txt.replace(numEl.textContent, '');
+    txt = txt.replace(/^[\s　]+|[\s　]+$/g, '');
+    if (!txt) return null;
+
+    // 在同位置放一个同宽探针，按字符二分找「高度≈h」的截断点
+    var probe = document.createElement(node.tagName);
+    probe.style.cssText = node.style.cssText;
+    probe.className = node.className;
+    probe.style.position = 'absolute';
+    probe.style.left = '-99999px';
+    probe.style.top = '0';
+    probe.style.margin = '0';
+    probe.style.padding = '0';
+    probe.style.maxHeight = 'none';
+    probe.style.overflow = 'visible';
+    probe.style.width = Math.round(node.getBoundingClientRect().width) + 'px';
+    probe.innerHTML = numHTML;
+    probe.appendChild(document.createTextNode(txt));
+    (node.parentNode || document.body).appendChild(probe);
+    var cut = findCharCut(probe, numHTML, txt, h);
+    if (node.parentNode) node.parentNode.removeChild(probe);
+    if (cut <= 0 || cut >= txt.length) return null;
+
+    var first = document.createElement(node.tagName);
+    first.className = node.className;
+    first.style.cssText = node.style.cssText;
     first.style.maxHeight = h + 'px';
     first.style.overflow = 'hidden';
     first.style.marginBottom = '0';
     first.style.breakInside = 'auto';
     first.style.pageBreakInside = 'auto';
-    var rest = node.cloneNode(true);
-    rest.style.marginTop = (-h) + 'px';
+    first.innerHTML = numHTML;
+    first.appendChild(document.createTextNode(txt.slice(0, cut)));
+
+    var rest = document.createElement(node.tagName);
+    rest.className = node.className;
+    rest.style.cssText = node.style.cssText;
+    rest.style.marginTop = '0';
     rest.style.breakInside = 'auto';
     rest.style.pageBreakInside = 'auto';
+    rest.textContent = txt.slice(cut);
     return { first: first, rest: rest, h: h };
+  }
+
+  // 在 probe（已含 numHTML + 全文、同宽）上按字符二分，返回使高度≤h 的最大截断长度
+  function findCharCut(probe, numHTML, txt, h){
+    if (probe.getBoundingClientRect().height <= h) return txt.length;
+    var lo = 0, hi = txt.length, best = 0;
+    while (lo < hi){
+      var mid = (lo + hi) >> 1;
+      probe.innerHTML = numHTML;
+      probe.appendChild(document.createTextNode(txt.slice(0, mid)));
+      var hh = probe.getBoundingClientRect().height;
+      if (hh <= h){ best = mid; lo = mid + 1; }
+      else hi = mid;
+    }
+    return best;
   }
 
   // 按给定的页高把连续流切成一页页。gran 用来临时覆盖换页粒度
@@ -2018,6 +2123,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   });
 
   document.addEventListener('keydown', function(e){
+    if (PREVIEW) return;   // 预览态：不响应打印 / 关闭快捷键，避免误打 iframe
     if (e.key === 'Escape'){ hideDone(); }
     else if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey){
       var t = e.target;
@@ -2103,6 +2209,28 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         return { html, opt, title: opt.title };
     }
 
+    // 进入做题页后自动统计并显示「共 X 题 / Y 份材料」，无需先点生成。
+    // 没有题目（不在做题页）时静默清空、不显示。轻量触发懒加载，不弹遮罩、不开新窗。
+    async function autoCount() {
+        if (busy) return;
+        const isShenlun = location.href.includes('shenlun');
+        let q = 0, m = 0;
+        if (isShenlun) {
+            // 申论：直接数题目 / 材料 tab，不切 tab、不克隆内容，零打扰
+            q = document.querySelectorAll('.questions-anchors .tabs-content .tab, .questions-anchors .tab').length
+                || document.querySelectorAll('.questions-objective-container app-ti, app-ti').length;
+            m = document.querySelectorAll('app-materials .tabs-content .tab').length;
+        } else {
+            try {
+                const items = await extractXingce(() => {}, true);
+                q = items.filter((i) => i.kind === 'question').length;
+                m = items.filter((i) => i.kind === 'material').length;
+            } catch (e) { setStatus(''); return; }
+        }
+        if (!q) { setStatus(''); return; }   // 没有题目不显示
+        setStatus(`共 <b>${q}</b> 题${m ? `，<b>${m}</b> 份材料` : ''}`);
+    }
+
     async function run(mode) {
         if (busy) return;
         busy = true;
@@ -2140,12 +2268,193 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     }
 
     /* ==================================================================
+     * 八·二、调整预览（解析一次 → 渲染进 iframe → 实时调参）
+     * ================================================================ */
+
+    let previewState = null;
+    let previewDebounce = 0;
+
+    // 复用 buildHtml：预览时 output 传 'preview' 且 preview:true（不自动打印/关页）
+    function buildPreviewHtml(state, output, preview) {
+        return buildHtml(state.items, state.opt, {
+            mode: state.isShenlun ? 'shenlun' : 'xingce',
+            output: output,
+            questionCount: state.questionCount,
+            preview: !!preview,
+        });
+    }
+
+    function renderPreview(state) {
+        const ov = $('fp-prev');
+        if (!ov) return;
+        const frame = ov.querySelector('iframe');
+        if (!frame) return;
+        const doc = frame.contentDocument;
+        if (!doc) return;
+        // 重渲染前记住当前滚动位置（doc.open 会清空文档并让滚动归零）
+        let y = 0;
+        try { const w = frame.contentWindow; y = w ? (w.scrollY || w.pageYOffset || 0) : 0; } catch (e) {}
+        doc.open();
+        doc.write(buildPreviewHtml(state, 'preview', true));
+        doc.close();
+        // 分页是异步的（fonts.ready / ~1200ms 后才切页），必须等新文档切页完成
+        // （__fpReady 置位）再还原滚动，否则会还原到一个还没切页的旧高度上而跳页。
+        const restore = (tries) => {
+            const w = frame.contentWindow;
+            if (!w) return;
+            if (w.__fpReady || tries > 50) {
+                try {
+                    const max = w.document.documentElement.scrollHeight - w.innerHeight;
+                    w.scrollTo(0, Math.max(0, Math.min(y, max)));
+                } catch (e) {}
+                return;
+            }
+            setTimeout(() => restore(tries + 1), 60);
+        };
+        setTimeout(() => restore(0), 80);
+    }
+
+    function scheduleRender(state) {
+        clearTimeout(previewDebounce);
+        previewDebounce = setTimeout(() => renderPreview(state), 180);
+    }
+
+    function openPreview() {
+        if (busy) return;
+        busy = true;
+        const isShenlun = window.location.href.includes('shenlun');
+        const opt = collectOptions();
+        showMask(isShenlun ? '正在抓取材料与题目…' : '正在排版…',
+            isShenlun ? '需要逐个切换材料与题目标签，请稍候' : '题目较多时需要十几秒');
+        (async () => {
+            let items;
+            try {
+                items = isShenlun ? await extractShenlun(() => {}) : await extractXingce(() => {});
+            } catch (e) {
+                console.error('[试卷排版] 预览提取失败', e);
+                hideMask();
+                setStatus('<span style="color:#dc2626">提取失败，请刷新页面重试</span>');
+                busy = false;
+                return;
+            }
+            const questionCount = items.filter((i) => i.kind === 'question').length;
+            if (!items.length || questionCount === 0) {
+                hideMask();
+                setStatus('<span style="color:#dc2626">未找到题目，请确认页面已完全加载</span>');
+                alert('没有在当前页面找到题目。\n请确认：\n1. 已进入试卷的做题页面；\n2. 题目区域已完全加载出来。');
+                busy = false;
+                return;
+            }
+            hideMask();
+            buildPreviewUI({
+                items, isShenlun, questionCount,
+                matCount: items.filter((i) => i.kind === 'material').length,
+                opt, title: opt.title,
+            });
+            busy = false;
+        })();
+    }
+
+    function buildPreviewUI(state) {
+        const old = $('fp-prev');
+        if (old) old.remove();   // 每次重建，避免重复绑定事件 / 旧 state 串味
+        const ov = document.createElement('div');
+        ov.id = 'fp-prev';
+        ov.className = 'fp-prev show';
+        ov.innerHTML = `
+<div class="fp-prev-bar">
+  <div class="fp-prev-brand"><span class="fp-emoji">✨</span><span>调整预览</span></div>
+  <div class="fp-prev-ctl"><label>字号</label><input type="number" id="fpv-font" step="0.5" min="9" max="22"></div>
+  <div class="fp-prev-ctl"><label>行距</label><input type="number" id="fpv-lh" step="0.05" min="1" max="2.2"></div>
+  <div class="fp-prev-ctl"><label>题目间距</label><input type="number" id="fpv-qs" min="0" max="40"></div>
+  <div class="fp-prev-ctl"><label>大图缩放</label><input type="number" id="fpv-fig" min="20" max="100"></div>
+  <div class="fp-prev-ctl"><label>换页方式</label><select id="fpv-pag">
+    <option value="smart">智能平衡</option><option value="ultra">极致省纸</option><option value="whole">整题不拆</option>
+  </select></div>
+  <div class="fp-prev-ctl"><label>页边距</label><select id="fpv-mg">
+    <option value="25mm 20mm">宽松</option><option value="15mm 15mm">标准</option><option value="10mm 10mm">紧凑</option>
+  </select></div>
+  <div class="fp-prev-ctl"><label><input type="checkbox" id="fpv-cover"> 封面页</label></div>
+  <div class="fp-prev-sp"></div>
+  <button class="fp-btn" id="fpv-print">打印</button>
+  <button class="fp-btn2" id="fpv-save">导出PDF</button>
+  <button class="fp-btn2" id="fpv-ok">保存并返回</button>
+  <span class="fp-prev-x" id="fpv-close" title="关闭">×</span>
+</div>
+<iframe class="fp-prev-frame"></iframe>`;
+        document.body.appendChild(ov);
+
+        // 用面板当前参数初始化
+        $('fpv-font').value = state.opt.fontSize;
+        $('fpv-lh').value = state.opt.lineHeight;
+        $('fpv-qs').value = state.opt.qSpacing;
+        $('fpv-fig').value = state.opt.figScale;
+        $('fpv-pag').value = state.opt.pagination;
+        $('fpv-mg').value = state.opt.margin;
+        $('fpv-cover').checked = !!state.opt.cover;
+
+        // 任一参数变动 → 更新 state.opt → 防抖重渲染
+        const sync = () => {
+            state.opt.fontSize = Number($('fpv-font').value) || state.opt.fontSize;
+            state.opt.lineHeight = Number($('fpv-lh').value) || state.opt.lineHeight;
+            state.opt.qSpacing = Number($('fpv-qs').value) || state.opt.qSpacing;
+            state.opt.figScale = Number($('fpv-fig').value) || state.opt.figScale;
+            state.opt.pagination = $('fpv-pag').value;
+            state.opt.margin = $('fpv-mg').value;
+            state.opt.cover = !!$('fpv-cover').checked;
+            scheduleRender(state);
+        };
+        ['fpv-font', 'fpv-lh', 'fpv-qs', 'fpv-fig'].forEach((id) => $(id).addEventListener('input', sync));
+        ['fpv-pag', 'fpv-mg', 'fpv-cover'].forEach((id) => $(id).addEventListener('change', sync));
+
+        $('fpv-print').onclick = () => printFromPreview(state, 'print');
+        $('fpv-save').onclick = () => printFromPreview(state, 'save');
+        $('fpv-ok').onclick = () => saveFromPreview(state);
+        $('fpv-close').onclick = () => closePreview();
+
+        previewState = state;
+        renderPreview(state);
+    }
+
+    // 预览里点「打印 / 导出PDF」：复用已解析的 items，直接出新版窗口打印，无需重新爬页
+    function printFromPreview(state, mode) {
+        const win = window.open('', '_blank');
+        if (!win) { alert('浏览器拦截了弹窗。\n请允许本站弹出窗口后重试。'); return; }
+        win.document.write(buildPreviewHtml(state, mode, false));
+        win.document.close();
+        printWhenReady(win);   // 用户主动点打印/导出，必定唤起打印对话框
+    }
+
+    // 把预览里调好的参数写回面板并持久化，再关掉预览
+    function saveFromPreview(state) {
+        applySettings({
+            fontSize: state.opt.fontSize,
+            lineHeight: state.opt.lineHeight,
+            qSpacing: state.opt.qSpacing,
+            figScale: state.opt.figScale,
+            pagination: state.opt.pagination,
+            margin: state.opt.margin,
+            cover: state.opt.cover,
+        });
+        saveSettings();
+        closePreview();
+    }
+
+    function closePreview() {
+        const ov = $('fp-prev');
+        if (ov) ov.remove();
+        previewState = null;
+    }
+
+    /* ==================================================================
      * 九、启动
      * ================================================================ */
 
     injectStyle();
     const { panel } = buildPanel();
-    bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'));
+    bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
+    // 进入做题页即自动统计题数 / 材料数并显示（轻量，不打扰）；延时等 Angular 渲染完
+    setTimeout(autoCount, 1200);
     applySettings(readSettings());
     syncShenlunUI();
     checkUpdate();
