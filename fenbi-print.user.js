@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.7
+// @version      1.8.8
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.7';
+    const VERSION = '1.8.8';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const STORE_UPD = 'fenbi_print_update_dismiss';
@@ -1303,6 +1303,12 @@ tr{break-inside:avoid;page-break-inside:avoid}
    用 flex-wrap 而不是 grid：每个 .fp-opt 是独立可搬的盒子，
    排版时才能把选项组拆到两页上，到了新页仍按同样的列宽排。 */
 .fp-opts{display:flex;flex-wrap:wrap;column-gap:18px;row-gap:.5em;margin-top:.3em;padding-left:var(--ohang,${HANG}em)}
+/* 选项列数由 layoutFor 按「整组最长项」统一决定（grid-1 / grid-2 / grid-4），
+   整组共用同一个 class —— 因此同一道题的选项永远列数一致：
+   要么都横排（4 个或 2 个一行），要么都逐行独占，绝不会出现
+   「有的横排、有的折行」的参差排版。
+   短组（最长项够窄）→ grid-4 一行 4 个；中组 → grid-2 一行 2 个；
+   长组（任一选项长到要独占一行）→ grid-1 整组逐行。 */
 .fp-opts.grid-1>.fp-opt{flex:0 0 100%}
 .fp-opts.grid-2>.fp-opt{flex:0 0 calc((100% - 18px)/2)}
 .fp-opts.grid-4>.fp-opt{flex:0 0 calc((100% - 54px)/4)}
@@ -2663,6 +2669,14 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     // 注：更新/注入机制回归 1.8.1 验证过的稳定逻辑（见 forceUpdate，重注入前删 5 个固定 id 再注入新版）。
     // 1.8.7 初版曾自行加入 __FP_INJECTED__ / destroyOldInstance 防重接管，实测在「传新版后首次更新」场景
     // 反而造成面板叠加卡死，故回退，不引入未经长期验证的注入机制改动。
+
+    // 1.8.8 —— 选项排布「按组统一」原则明确化：
+    // 列数由 layoutFor 按整组最长项（q.maxUnits / 大图）统一决定，整组共用同一 class，
+    // 因此同一道题的选项永远列数一致：要么都横排（grid-4 一行4个 / grid-2 一行2个），
+    // 要么都逐行独占（grid-1）。当组里有任一选项长到要独占一行时，整组走 grid-1，
+    // 其余选项也跟着逐行独占，绝不会出现「有的横排、有的折行」的参差。
+    // 注：曾尝试把 grid-2/grid-4 改成 flex:1 1 auto 做「逐选项自适应」，
+    // 结果把列数拆到每个选项头上、反而制造了组内参差，已回退为固定列宽。
     injectStyle();
     const { panel } = buildPanel();
     bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
