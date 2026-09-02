@@ -730,7 +730,7 @@
         const empty = { options: [], allImage: false, hasBigImg: false, maxUnits: 0, maxImgW: 0 };
         if (!nodes.length) return empty;
 
-        let allImage = true, hasBigImg = false;
+        let allImage = true, hasBigImg = false, anyImg = false;
         const raw = [];
 
         nodes.forEach((opt, i) => {
@@ -777,6 +777,7 @@
             forText.querySelectorAll('.fp-ol').forEach((e) => e.remove());
             const plain = (forText.innerText || '').replace(/\s+/g, '');
             const hasMedia = !!clone.querySelector('img, svg, canvas');
+            if (hasMedia) anyImg = true;
             if (plain.length > 0 && !/^[A-D.、]$/.test(plain) && !hasMedia) allImage = false;
 
             // 记录选项里最宽的一张图，供渲染层估算列宽
@@ -817,7 +818,7 @@
             if (o.imgW > maxImgW) maxImgW = o.imgW;
         });
 
-        return { options, allImage, hasBigImg, maxUnits, maxImgW };
+        return { options, allImage, hasBigImg, anyImg, maxUnits, maxImgW };
     }
 
     // ---- 行测：滚动加载后直接读取 ----
@@ -904,6 +905,7 @@
                     stemHtml,
                     options: picked.options,
                     allImage: picked.allImage,
+                    anyImg: picked.anyImg,
                     maxUnits: picked.maxUnits,
                     maxImgW: picked.maxImgW,
                     figure: picked.allImage || stemImgs >= 1,
@@ -1099,7 +1101,10 @@
         // 会让 imgNeed=0、need=0，命中下方 need<=0 兜底 → 强制 grid-1 一行一个、页面空旷。
         // 既然 CSS 已把图锁在 140×100 渲染框内，这里对「无可读宽度的小图」按框宽 140 反推，
         // 让 layoutFor 仍能按真实占位选 grid-2/4。有 width 属性的大图仍走原 maxImgW 路径（封顶 140）。
-        const imgNeed = q.allImage && !q.hasBigImg
+        // 1.8.8 修正：140 特判必须同时满足 anyImg（选项里真有 <img>）。
+        // 否则图形推理题选项图没抓到、只剩字母「A/B/C/D」时，会因 allImage 仍为 true 被误判成
+        // 140px 宽的小图，把本该一行 4 个的短选项顶成 grid-2。anyImg 为 false 即按文字需求算。
+        const imgNeed = q.allImage && !q.hasBigImg && q.anyImg
             ? 140
             : Math.min(q.maxImgW * opt.figScale / 100, 140);
         const need = Math.max(textNeed, imgNeed);
@@ -2677,6 +2682,9 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     // 其余选项也跟着逐行独占，绝不会出现「有的横排、有的折行」的参差。
     // 注：曾尝试把 grid-2/grid-4 改成 flex:1 1 auto 做「逐选项自适应」，
     // 结果把列数拆到每个选项头上、反而制造了组内参差，已回退为固定列宽。
+    // 另修一处：图形推理题选项图未抓取、只剩字母「A/B/C/D」时，pickOptions 仍因单字母例外
+    // 把 allImage 判为 true，致使 layoutFor 误套 140 特判把短选项顶成 grid-2；
+    // 现加 anyImg 信号，只有选项里真有 <img> 才按图宽估算，纯字母短选项正确归到 grid-4（一行4个）。
     injectStyle();
     const { panel } = buildPanel();
     bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
