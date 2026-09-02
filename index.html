@@ -166,7 +166,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 <div class="wrap">
 
 <header>
-  <h1>粉笔试卷排版打印<span class="badge">v1.8.6</span></h1>
+  <h1>粉笔试卷排版打印<span class="badge">v1.8.7</span></h1>
   <div class="sub">把粉笔在线试卷排成 A4 真卷：题号悬挂缩进、自动分页、题目可跨页，直接打印或导出 PDF</div>
 </header>
 
@@ -270,12 +270,14 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
   <p>打开试卷页会自动出现面板，不用每次点书签。需要先装 Tampermonkey 扩展：</p>
   <ol>
     <li>点下面的按钮去装 Tampermonkey（浏览器扩展商店页面，点「添加至浏览器」）</li>
-    <li>装完回到本页，点第二个按钮，在油猴的确认页点「安装」</li>
+    <li>装完回到本页，点「② 安装本脚本（国内直连）」；若打不开，再点下面的「备选：GitHub 原链接」。在油猴的确认页点「安装」即可</li>
   </ol>
   <div class="row">
     <a class="btn" href="https://www.tampermonkey.net/" target="_blank" rel="noopener">① 去装 Tampermonkey</a>
-    <a class="btn" href="https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本</a>
+    <a class="btn" href="https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本（国内直连）</a>
+    <a class="btn" style="background:#64748b" href="https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js" target="_blank" rel="noopener">② 备选：GitHub 原链接（需能访问 GitHub）</a>
   </div>
+  <p class="hint">提示：直连走的是 CDN 镜像，刚发布新版时可能有最长 12 小时的缓存延迟。装完在油猴里核一下版本号，与本页面顶部标注的不一致，就点备选链接，或改用小书签（小书签每次点击都拉最新版）。</p>
   <div class="gd-wrap">
     <div class="gd-title">🐒 油猴方式 · 使用示意</div>
     <div class="gd-screen" id="gdScreenTm">
@@ -389,8 +391,13 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 
 <div class="card">
   <h2><span class="n g">6</span>更新日志</h2>
-  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.8.6）：</p>
+  <p class="hint" style="margin-top:0">最近几个版本的改动（当前 v1.8.7）：</p>
   <div class="cl">
+    <div class="cl-v">v1.8.7<span>2026-09-01</span></div>
+    <ul>
+      <li><b>更新/注入机制回归 1.8.1 稳定逻辑</b>：1.8.7 初版自行加入的防重标记 + 强制接管 DOM 注入机制，实测在「传新版后首次更新」场景反而造成面板叠加卡死（旧版小书签通道一直稳定，属新增机制引入的回归），已回退——启动段、立即更新重注入（删固定 5 个 UI 节点后注入新版）、面板拖动监听均改回与 1.8.1 逐字一致；书签链接不变。本版保留 1.8.4~1.8.6 的排版修复（混合/小图/纯公式图选项布局）</li>
+      <li><b>安装脚本按钮改为国内直连</b>：原先「② 安装本脚本」直链 github.com 的 raw 地址，国内网络打不开会显示空白页。现主按钮改为 jsDelivr CDN 镜像（实测 1 秒内返回、内容与仓库最新版一致），原 GitHub 链接保留为「备选」按钮，两个入口互为备份</li>
+    </ul>
     <div class="cl-v">v1.8.6<span>2026-09-01</span></div>
     <ul>
       <li><b>修复纯公式图选项被强制一行一个、页面空旷</b>：四个选项全是数学公式图片（粉笔以无 width 属性的小图代替公式）时，因文字宽度与图片宽度两个信号同时归零，列数估算命中兜底分支被强制 grid-1，每个选项独占一行且右侧大片留白；现对「纯图且无可读大图宽」的题按 CSS 渲染框宽（140px）反推所需宽度，使其正确并排为 grid-4（纯文字 / 混合 / 有 width 大图题行为不变）</li>
@@ -485,7 +492,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 </div>
 
 <footer>
-  当前版本 v1.8.6 · 更新于 2026-09-01
+  当前版本 v1.8.7 · 更新于 2026-09-01
   <div class="foot-stat">总访问 <span class="busuanzi-value" id="busuanzi_value_site_pv">—</span> 次</div>
   <div class="foot-contact"><a href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a></div>
 </footer>
