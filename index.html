@@ -274,7 +274,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
   </ol>
   <div class="row">
     <a class="btn" href="https://www.tampermonkey.net/" target="_blank" rel="noopener">① 去装 Tampermonkey</a>
-    <a class="btn" href="https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本（国内直连）</a>
+    <a class="btn" href="https://gcore.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本（国内直连）</a>
     <a class="btn" style="background:#64748b" href="https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js" target="_blank" rel="noopener">② 备选：GitHub 原链接（需能访问 GitHub）</a>
   </div>
   <p class="hint">提示：直连走的是 CDN 镜像，刚发布新版时可能有最长 12 小时的缓存延迟。装完在油猴里核一下版本号，与本页面顶部标注的不一致，就点备选链接，或改用小书签（小书签每次点击都拉最新版）。</p>
@@ -396,7 +396,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
     <div class="cl-v">v1.8.7<span>2026-09-01</span></div>
     <ul>
       <li><b>更新/注入机制回归 1.8.1 稳定逻辑</b>：1.8.7 初版自行加入的防重标记 + 强制接管 DOM 注入机制，实测在「传新版后首次更新」场景反而造成面板叠加卡死（旧版小书签通道一直稳定，属新增机制引入的回归），已回退——启动段、立即更新重注入（删固定 5 个 UI 节点后注入新版）、面板拖动监听均改回与 1.8.1 逐字一致；书签链接不变。本版保留 1.8.4~1.8.6 的排版修复（混合/小图/纯公式图选项布局）</li>
-      <li><b>安装脚本按钮改为国内直连</b>：原先「② 安装本脚本」直链 github.com 的 raw 地址，国内网络打不开会显示空白页。现主按钮改为 jsDelivr CDN 镜像（实测 1 秒内返回、内容与仓库最新版一致），原 GitHub 链接保留为「备选」按钮，两个入口互为备份</li>
+      <li><b>安装脚本按钮改为国内直连</b>：原先「② 安装本脚本」直链 github.com 的 raw 地址，国内网络打不开会显示空白页。现主按钮改用 jsDelivr 的 gcore 节点（国内可用性高于默认的 cdn. 通用节点，实测内容与仓库最新版逐字节一致），原 GitHub 链接保留为「备选」按钮，两个入口互为备份。<b>注：本条仅涉及页面上的安装链接，脚本与小书签的更新通道均未改动</b></li>
     </ul>
     <div class="cl-v">v1.8.6<span>2026-09-01</span></div>
     <ul>
