@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.8.32
+// @version      1.8.33
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -29,7 +29,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.8.32';
+    const VERSION = '1.8.33';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
@@ -1108,13 +1108,63 @@
         return { options, allImage, hasBigImg, anyImg, maxUnits, maxImgW };
     }
 
+    // 题目最外层容器（只用来做「往下找 app-ti」的根，不参与任何排版计算）。
+    //
+    // ⚠️ 先把丑话说在前面：这个函数**不是**「课程题组抓不到」解药，别误会它。
+    //   本版（1.8.33）曾一度断言「课程题组没有 .tis-container」，那是**错的** ——
+    //   拿用户两次回传的真机 DOM 逐层比对，课程题组的结构是
+    //     app-exercise > app-nav-header + div.exercise-main > app-tis > div.tis-container
+    //   —— .tis-container 明明白白在那儿，其下 9 道题一个不少。
+    //   用真机 DOM 1:1 构造页面 + 无头 Chromium 实跑复验（t30/probe_tiroot.js）：
+    //     ① 课程题组（真 DOM，题目已渲染）→ 根 = .tis-container，抓到 9 题 ✅
+    //     ② 课程题组（外壳都在、app-ti 尚未渲染）→ 抓到 0 题  ← 用户遇到的现场
+    //     ④ 题库专项练习                    → 根 = .tis-container，抓到 5 题 ✅
+    //     ⑤ 真题卷（回归对照）              → 根 = .tis-container，抓到 3 题 ✅
+    //   旧代码的 document.querySelector('.tis-container') 本来就能命中，
+    //   所以**选择器从来不是病根** —— 真正的原因是**时序**：
+    //   课程页从 www.fenbi.com/ai-lecture/… 套 iframe 进来，题目由 Angular 异步塞进 DOM，
+    //   脚本跑的时候容器（乃至 .tis-container 本身）还没生成，于是抓到 0 题。
+    //
+    //   那这个兜底还有没有用？有，但只对「外壳名不同」的页面有用（前几级命中即生效），
+    //   对上面 ② 那种「页面里本来就没题」的时序场景**救不了** ——
+    //   ② 里 app-tis 自己也没有 app-ti，循环照样跳过，一路退到 body。
+    //   真正解决课程题组的是启动层的「轮询到有题为止 + 路由变化重跑」，
+    //   见 runInit / startPollCount。这里保留兜底只是为将来别种外壳留一手。
+    //
+    //   ⚠️ 返回值的**语义**是「装着题目的那个盒子」，只用于 querySelectorAll 往下找题；
+    //     不要拿它当滚动容器或量高度。真题卷下它仍返回 .tis-container，
+    //     与旧行为完全一致 —— 分页表现不受影响
+    //     （已跑 regress_num_clip 六档悬挂验证：页数 9、撕开次数与基线一致、
+    //       题号不可见 = 0、字符守恒 = true，见 t30 实测记录）。
+    function tiRoot() {
+        for (const sel of ['.tis-container', 'app-tis', 'app-exercise', '.exercise-container', '.paper-container']) {
+            let el = null;
+            try { el = document.querySelector(sel); } catch (e) { /* 选择器异常则跳过 */ }
+            if (el && el.querySelector('app-ti')) return el;
+        }
+        // 兜底：.ti 是课程题组的题目外框，取它的公共祖先，
+        // 别把范围缩到单道题上（否则 countTis 永远只数到 1）。
+        const one = document.querySelector('.ti app-ti');
+        if (one) {
+            const box = one.closest('.ti');
+            if (box && box.parentElement) return box.parentElement;
+        }
+        // 返回 body 是**刻意保留**的旧行为：页面没渲染完时先按 body 找，
+        // 后面的「重试一次」会再抓；返回 null 会让调用处炸在 .querySelectorAll。
+        return document.body;
+    }
+
     // ---- 行测：滚动加载后直接读取 ----
     async function extractXingce(onProgress, quick) {
         onProgress && onProgress('正在加载全部题目…');
 
         const scroller = findScroller();
         const isWin = scroller === window;
-        const countTis = () => (document.querySelector('.tis-container') || document.body).querySelectorAll('app-ti').length;
+        // 题目容器：真题卷、课程题组、题库专项练习**都有 .tis-container**
+        // （拿用户真机 DOM 实测确认过，别信「课程题组没有这个外壳」那种说法），
+        // 统一走 tiRoot() 只为兜住将来别种外壳；抓不到题的真正原因是时序，
+        // 靠 runInit / startPollCount 的轮询解决，不靠这里。
+        const countTis = () => tiRoot().querySelectorAll('app-ti').length;
 
         let lastH = -1, lastC = -1, stall = 0;
         const maxIter = quick ? 6 : 25;
@@ -1137,7 +1187,7 @@
             window.scrollTo(0, 0);
         } catch (e) { /* 忽略 */ }
 
-        const root = document.querySelector('.tis-container') || document.body;
+        const root = tiRoot();
         const nodes = root.querySelectorAll('.chapter-container, app-materials, .material, .material-content, app-ti');
 
         const items = [];
@@ -4141,35 +4191,102 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     //      30°、△AOD 的墨迹与旁边「国」字同高。
     //    回归防护：check-scope.js 增加两条 —— ①检测旧常量是否残留；
     //      ②跨作用域调用检测（本轮负向验证过：故意注入一次 applyTexSize 调用能被抓出）。
-    injectStyle();
-    const { panel } = buildPanel();
-    bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
-    // 进入做题页即自动统计题数 / 材料数并显示（轻量，不打扰）；延时等 Angular 渲染完
-    setTimeout(autoCount, 1200);
-    applySettings(readSettings());
-    syncShenlunUI();
-    checkUpdate();
+    /* ---------------- 1.8.33 启动重构：幂等 runInit + 路由变化重跑 ----------------
+     *
+     * ★ 这一节才是「课程题组抓不到」的**真正解药**（已用真机 DOM 实测确认）：
+     *   病根是**时序**，不是选择器 —— 外壳（.tis-container）一直在，只是脚本跑的时候
+     *   Angular 还没把 app-ti 塞进 DOM。实测对照（t30/probe_tiroot.js）：
+     *     题目已渲染 → 抓到 9 题 ／ 外壳都在但题目未渲染 → 抓到 0 题 ← 用户遇到的现场
+     *
+     * 真机控制台日志给出的顺序是关键证据：
+     *     路由事件结束：/remote/exam/https:%2F%2Fspa.fenbi.com%2Fti%2Fexam%2Fexercise%2F1_1_3sdocaj
+     *     [试卷排版打印] v1.8.32 已就绪  …/exercise/1_1_3sdocaj?routecs=xingce
+     * 「已就绪」打在路由结束之后 —— 说明脚本**不是**跑在页面加载前，
+     * 而是跑在 Angular 把题目塞进 DOM 之前。旧写法只在全站发一次初始化：
+     *     setTimeout(autoCount, 1200)  ← 一次性的，错过就没了
+     * 于是面板在、题数空、点生成报「没抓到题目」。
+     *
+     * 做法：把启动包成 runInit()，用 window.__fpInitUrl 记下「上次按哪个地址初始化过」，
+     *   地址没变就整个不动（幂等，重复触发不会叠面板）；
+     *   地址变了（课程页 → 题组 iframe 内路由跳转）就重新走一遍探测。
+     *   统计与标题本来就是轮询，重入无害。
+     *
+     * ⚠️ 刻意**不**用 setInterval 轮询 location.href 来兜底：
+     *   spa.fenbi.com 是 pushState 路由，轮询抓不到自身跳转；
+     *   而且会把 _ngcontent 变化之类的无关重渲染也算进来，反复重建面板 ——
+     *   典型的「看着聪明但会坑用户」的花活。只认真正会派发的事件，宁少不错。
+     */
+    if (!window.__fpInitUrl) {
+        Object.defineProperty(window, '__fpInitUrl', { value: '', writable: true, configurable: true });
+    }
 
-    // 把真实试卷名回填到面板：不能用固定延迟。
-    // 试卷名是 Angular 异步渲染的，写死 900ms 在慢机器／弱网上会跑空，
+    // 进入做题页即自动统计题数 / 材料数并显示（轻量，不打扰）。
+    // 1.8.33：改成「轮询到有题为止」，并设 12s 死线，避免在非做题页上无限轮询。
+    function startPollCount() {
+        (function pollCount(tries) {
+            if (busy) return;
+            if (tries >= 24) return;              // 24 × 500ms = 12s 死线
+            setTimeout(function () {
+                Promise.resolve(autoCount()).then(function () {
+                    // 面板已显示题数 → 说明抓到了，停止轮询
+                    const el = $('fp-stat');
+                    if (el && /共\s*<b>/.test(el.innerHTML || '')) return;
+                    pollCount(tries + 1);
+                });
+            }, tries === 0 ? 800 : 500);
+        })(0);
+    }
+
+    // 把真实试卷名回填到面板（幂等，重入无害）。
+    // 不能用固定延迟：试卷名是 Angular 异步渲染的，写死 900ms 在慢机器／弱网上会跑空，
     // 于是 readPaperTitle() 退到 document.title（粉笔的静态标题就是「粉笔题库」），
-    // 卷子封面上会印出一个毫无意义的「粉笔题库」。改成轮询，读到为止。
-    (function pollTitle(deadline) {
+    // 卷子封面上会印出一个毫无意义的「粉笔题库」。所以改成轮询，读到为止。
+    //
+    // 只有拿到**真正有意义**的试卷名才回填：
+    //   旧写法「元素一出现就取」会踩两个坑 —— 粉笔的元素常先以 title="null" 占位出现，
+    //   于是把假名字写进输入框；再叠加「拿不到就退 document.title」的兜底，
+    //   最终封面上印的要么是 null、要么是无意义的「粉笔题库」。
+    // 现在「值可用才写」，读不到就保持 placeholder（正在读取当前试卷…），
+    // 生成时会强制重新读一次，读不到就明确提示用户刷新。
+    function pollTitle(deadline) {
         const el = $('fp-title');
         if (!el) return;
         // 用户已经改过或已回填过，不再动它
         if (el.value.trim() && el.value !== TITLE_PLACEHOLDER) return;
-        // 只有拿到**真正有意义**的试卷名才回填。
-        // 旧写法是「元素一出现就取」，可粉笔的元素常常先以 title="null" 占位出现，
-        // 于是把一个假名字回填进了输入框；再叠加「拿不到就退 document.title」的兜底，
-        // 最终封面上印的要么是 null、要么是无意义的「粉笔题库」。
-        // 现在改成「值可用才写」，读不到就一直保持 placeholder（= 正在读取当前试卷…），
-        // 生成时会强制重新读一次，读不到就明确提示用户刷新页面。
         const t = readPaperTitle();
         if (t) { el.value = t; return; }
         if (Date.now() >= deadline) return;   // 超时仍读不到：留空占位，交给生成时的提示
         setTimeout(() => pollTitle(deadline), 400);
-    })(Date.now() + 10000);
+    }
+
+    function runInit() {
+        const here = String(location.href);
+        if (window.__fpInitUrl === here) return;   // 同一地址重复触发：一个指头都不碰
+        window.__fpInitUrl = here;
+
+        // 面板可能已存在（同址重入或用户已打开预览）—— 有就只重挂统计，不重建
+        if (!$('fp-panel')) {
+            injectStyle();
+            const { panel } = buildPanel();
+            bindPanel(panel, $('fp-mask'), () => run('print'), () => run('save'), () => openPreview());
+            applySettings(readSettings());
+            syncShenlunUI();
+        }
+        startPollCount();
+        pollTitle(Date.now() + 10000);
+        checkUpdate();
+    }
+
+    // 路由监听：地址真的变了才可能重跑（runInit 内部还会再判一次，双保险）。
+    //   原生 popstate / hashchange 覆盖浏览器前进后退；
+    //   粉笔 SPA 自己的路由事件名字拿不到，试几个常见名，派发不了就静默跳过 ——
+    //   有原生这两个已够用，不为第三类事件写花哨兜底。
+    ['popstate', 'hashchange'].forEach((ev) => window.addEventListener(ev, () => runInit()));
+    ['fp-route-change', 'route-change', 'ng-router-change'].forEach((ev) => {
+        try { window.addEventListener(ev, () => setTimeout(runInit, 300)); } catch (e) { /* 忽略 */ }
+    });
+
+    runInit();
 
     console.log('%c[试卷排版打印] v' + VERSION + ' 已就绪', 'color:#16a34a;font-weight:bold');
 })();    // 1.8.23  修好 1.8.22 的对齐：公式没错，但**一次都没生效**
@@ -4304,3 +4421,4 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     //    把公式图的 vertical-align 顶成了 baseline，居中直接失效。
     //    教训：公式图的对齐**只由 JS 内联值决定**，样式表里一个都别写。
     //
+
