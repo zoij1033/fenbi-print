@@ -195,7 +195,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 <div class="wrap">
 
 <header>
-  <h1>粉笔试卷排版打印<span class="badge">v1.8.32</span></h1>
+  <h1>粉笔试卷排版打印<span class="badge">v1.11.10</span></h1>
   <div class="sub">把粉笔在线试卷排成 A4 真卷：题号悬挂缩进、自动分页、题目可跨页，直接打印或导出 PDF</div>
 </header>
 
@@ -205,7 +205,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 
   <p class="hint bm-needbar">看不到书签栏？按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 显示（Mac 是 <kbd>&#8984;</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>），再把按钮拖进去。</p>
 
-  <a class="bm" href="javascript:(function(){var API='https://api.github.com/repos/zoij1033/fenbi-print/contents/fenbi-print.user.js?ref=main';var RAW='https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';var FB='https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';function b64(b){try{return decodeURIComponent(escape(atob(b)));}catch(e){return atob(b);}}function strip(){['fp-panel','fp-mask','fp-done','fp-loading','fp-loading-style','fp-style'].forEach(function(id){var e=document.getElementById(id);if(e&&e.parentNode)e.parentNode.removeChild(e);});}function showLoading(){var st=document.createElement('style');st.id='fp-loading-style';st.textContent='#fp-loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483647;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.2);padding:18px 22px;min-width:250px;font-family:-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;color:#1f2937}#fp-loading .t{font-size:14px;font-weight:700;margin-bottom:10px}#fp-loading .bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden}#fp-loading .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#2563eb,#0891b2);border-radius:99px;animation:fpL 1.1s ease-in-out infinite}@keyframes fpL{0%{margin-left:-40%}100%{margin-left:100%}}#fp-loading .s{font-size:12px;color:#64748b;margin-top:9px}#fp-loading .e{font-size:12px;color:#94a3b8;margin-top:2px}';document.head.appendChild(st);var d=document.createElement('div');d.id='fp-loading';d.innerHTML='<div class=t>粉笔打印脚本加载中…</div><div class=bar><i></i></div><div class=s id=fp-ls>正在并行连接多个源…</div><div class=e id=fp-le>已等待 0s</div>';document.body.appendChild(d);}function setS(t){var e=document.getElementById('fp-ls');if(e)e.textContent=t;}function stopL(){var e=document.getElementById('fp-loading');if(e&&e.parentNode)e.parentNode.removeChild(e);}function fetchText(u,ms,dec){var ac=new AbortController();var to=setTimeout(function(){ac.abort();},ms);return fetch(u,{cache:'no-store',signal:ac.signal}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){clearTimeout(to);var o=dec?dec(t):t;if(!/const VERSION\s*=/.test(o))throw 0;return o;});}function decApi(t){try{return b64(JSON.parse(t).content.replace(/[\s\r\n]/g,''));}catch(e){throw e;}}strip();showLoading();var t0=Date.now();var iv=setInterval(function(){var e=document.getElementById('fp-le');if(e)e.textContent='已等待 '+Math.round((Date.now()-t0)/1000)+'s';},1000);function inj(c){strip();var s=document.createElement('script');s.textContent=c;document.head.appendChild(s);stopL();}Promise.race([fetchText(API,9000,decApi),fetchText(RAW+'?t='+Date.now(),12000,null)]).then(function(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}).catch(function(){setS('GitHub 源不可达,尝试 CDN 党底…');return fetchText(FB+'?t='+Date.now(),15000,null);}).then(function(txt){if(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}}).catch(function(){clearInterval(iv);setS('加载失败:三个源均不可达,请检查网络或确认 GitHub 仓库为 Public');var e=document.getElementById('fp-loading');if(e){e.style.cursor='pointer';e.onclick=stopL;}setTimeout(stopL,9000);});})();" onclick="return false;">✨ 粉笔试卷排版打印</a>
+  <a class="bm" href="javascript:(function(){var API='https://api.github.com/repos/zoij1033/fenbi-print/contents/fenbi-print.user.js?ref=main';var RAW='https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';var FB='https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';var FY='https://fastly.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';function b64(b){try{return decodeURIComponent(escape(atob(b)));}catch(e){return atob(b);}}function strip(){['fp-panel','fp-mask','fp-done','fp-loading','fp-loading-style','fp-style'].forEach(function(id){var e=document.getElementById(id);if(e&&e.parentNode)e.parentNode.removeChild(e);});}function showLoading(){var st=document.createElement('style');st.id='fp-loading-style';st.textContent='#fp-loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483647;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.2);padding:18px 22px;min-width:250px;font-family:-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;color:#1f2937}#fp-loading .t{font-size:14px;font-weight:700;margin-bottom:10px}#fp-loading .bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden}#fp-loading .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#2563eb,#0891b2);border-radius:99px;animation:fpL 1.1s ease-in-out infinite}@keyframes fpL{0%{margin-left:-40%}100%{margin-left:100%}}#fp-loading .s{font-size:12px;color:#64748b;margin-top:9px}#fp-loading .e{font-size:12px;color:#94a3b8;margin-top:2px}';document.head.appendChild(st);var d=document.createElement('div');d.id='fp-loading';d.innerHTML='<div class=t>粉笔打印脚本加载中…</div><div class=bar><i></i></div><div class=s id=fp-ls>正在并行连接多个源…</div><div class=e id=fp-le>已等待 0s</div>';document.body.appendChild(d);}function setS(t){var e=document.getElementById('fp-ls');if(e)e.textContent=t;}function stopL(){var e=document.getElementById('fp-loading');if(e&&e.parentNode)e.parentNode.removeChild(e);}function fetchText(u,ms,dec){var ac=new AbortController();var to=setTimeout(function(){ac.abort();},ms);return fetch(u,{cache:'no-store',signal:ac.signal}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){clearTimeout(to);var o=dec?dec(t):t;if(!/const VERSION\s*=/.test(o))throw 0;return o;});}function decApi(t){try{return b64(JSON.parse(t).content.replace(/[\s\r\n]/g,''));}catch(e){throw e;}}strip();showLoading();var t0=Date.now();var iv=setInterval(function(){var e=document.getElementById('fp-le');if(e)e.textContent='已等待 '+Math.round((Date.now()-t0)/1000)+'s';},1000);function inj(c){strip();var s=document.createElement('script');s.textContent=c;document.head.appendChild(s);stopL();}Promise.race([fetchText(API,9000,decApi),fetchText(RAW+'?t='+Date.now(),12000,null)]).then(function(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}).catch(function(){setS('GitHub 源不可达,尝试 CDN 兜底…');return fetchText(FB+'?t='+Date.now(),15000,null).catch(function(){setS('CDN 不可达,尝试 fastly 兜底…');return fetchText(FY+'?t='+Date.now(),15000,null);});}).then(function(txt){if(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}}).catch(function(){clearInterval(iv);setS('加载失败:三个源均不可达,请检查网络或确认 GitHub 仓库为 Public');var e=document.getElementById('fp-loading');if(e){e.style.cursor='pointer';e.onclick=stopL;}setTimeout(stopL,9000);});})();" onclick="return false;">✨ 粉笔试卷排版打印</a>
   <p class="hint">拖不动？右键按钮 →「复制链接地址」，再手动新建书签把地址粘进「网址」框。</p>
   <div class="row">
     <button class="btn gray" id="copy">复制小书签代码</button>
@@ -317,11 +317,11 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
   <p>打开试卷页会自动出现面板，不用每次点书签。需要先装 Tampermonkey 扩展：</p>
   <ol>
     <li>点下面的按钮去装 Tampermonkey（浏览器扩展商店页面，点「添加至浏览器」）</li>
-    <li>装完回到本页，点「② 安装本脚本（国内直连）」；若打不开，再点下面的「备选：GitHub 原链接」。在油猴的确认页点「安装」即可</li>
+    <li>装完回到本页，点「② 安装本脚本（国内加速）」；若打不开，再点下面的「备选：GitHub 原链接」。在油猴的确认页点「安装」即可</li>
   </ol>
   <div class="row">
     <a class="btn" href="https://www.tampermonkey.net/" target="_blank" rel="noopener">① 去装 Tampermonkey</a>
-    <a class="btn" href="https://gcore.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本（国内直连）</a>
+    <a class="btn" href="https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js" target="_blank" rel="noopener">② 安装本脚本（国内加速）</a>
     <a class="btn" style="background:#64748b" href="https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js" target="_blank" rel="noopener">② 备选：GitHub 原链接（需能访问 GitHub）</a>
   </div>
   <p class="hint">提示：直连走的是 CDN 镜像，刚发布新版时可能有最长 12 小时的缓存延迟。装完在油猴里核一下版本号，与本页面顶部标注的不一致，就点备选链接，或改用小书签（小书签每次点击都拉最新版）。</p>
@@ -347,7 +347,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
               <div class="gd-modal-bar"><span class="cir"></span><span class="cir"></span><span class="cir"></span><span class="mt">Tampermonkey</span></div>
               <div class="gd-modal-body">
                 <div class="name">粉笔试卷排版打印</div>
-                <div class="row">版本 <span class="ver">v1.8.32</span></div>
+                <div class="row">版本 <span class="ver">v1.11.10</span></div>
                 <div class="row">作者：火焰百合　来源：GitHub</div>
                 <div class="row">将安装到此网页：fenbi.com</div>
               </div>
@@ -448,8 +448,150 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 
 <div class="card">
   <h2><span class="n g">6</span>更新日志</h2>
-  <p class="hint" style="margin-top:0">下面是最近几个版本改了什么（当前 v1.8.32）：</p>
+  <p class="hint" style="margin-top:0">下面是最近几个版本改了什么（当前 v1.11.10）：</p>
   <div class="cl">
+      <div class="cl-v">v1.11.10<span>2026-09-30</span></div>
+    <ul>
+      <li><b>安装按钮指向的节点换了</b>：页面上「② 安装本脚本」原来走的那个节点缓存很慢、长期停在很老的版本，点下去容易装到旧版。现在换成响应正常的节点，装到的就是最新版。</li>
+      <li><b>其它一切照旧</b>：做题页的分页、排版、打印和上一版完全一样，一个地方都没动。</li>
+    </ul>
+      <div class="cl-v">v1.11.9<span>2026-09-30</span></div>
+    <ul>
+      <li><b>修好面板乱跳</b>：不在做题页（比如粉笔首页或别的网页）时，点开设置面板会上下疯狂跳动，现在不会了。</li>
+      <li><b>其它一切照旧</b>：做题页的分页、排版、打印和上一版完全一样，一个地方都没动。</li>
+    </ul>
+      <div class="cl-v">v1.11.8<span>2026-09-30</span></div>
+    <ul>
+      <li><b>油猴更新不再卡在旧版本</b>：之前用油猴点更新，跳出来的会是 1.8.33 这个老版本（因为更新走的一个节点缓存卡住了）。现在更新走的是正常节点，能拿到真正的最新版。</li>
+      <li><b>小书签更稳了</b>：书签本身不用重做，加载时多了一个备选通道，网络不好时更不容易「三个源都打不开」。</li>
+    </ul>
+      <div class="cl-v">v1.11.7<span>2026-09-30</span></div>
+    <ul>
+      <li><b>设置面板不再空一大截</b>：没装某款字体时，「正文字体」下拉和下面那行「⚠ 本机未安装」之间原本空掉一大块，看着别扭，现在调回紧凑。</li>
+      <li><b>鼠标移到云朵上时，下方文字会让位</b>：弹出安装说明浮层的同时，被它盖住的那两行会自动隐去，不会糊在一起；移开鼠标就回来，位置不跳。</li>
+    </ul>
+      <div class="cl-v">v1.11.6<span>2026-09-30</span></div>
+    <ul>
+      <li><b>打印不再多出空白页</b>：用 Firefox 打印或导出 PDF 时，封面后面会莫名其妙多一张空白页（封面是第 1 页、缓冲页第 2 页，第 3 页却是空的）——原因是那张缓冲页高度没算成整张纸。这一版把它补满成整页，Firefox 下不再多页。</li>
+      <li><b>其它一切照旧</b>：分页、排版、打印和上一版完全一样，一个地方都没动。</li>
+    </ul>
+      <div class="cl-v">v1.11.5<span>2026-09-30</span></div>
+    <ul>
+      <li><b>字体检测再修一道</b>：有些电脑（尤其是 Firefox 浏览器）上，上一版还是会误报宋体、仿宋「未安装」。原因是浏览器出于隐私，会故意把一批系统字体藏起来不让网页量出来，宋体、仿宋正好在藏起来的名单里。这一版换了个更硬的办法——<b>直接去查本机字库的登记名</b>（宋体、仿宋、仿宋_GB2312、微软雅黑这些中文名也能查），查不到才退回原来的量宽度办法。装了就能被认出来，没装也不会误判成装了。</li>
+      <li><b>其它一切照旧</b>：分页、排版、打印和上一版完全一样，一个地方都没动。</li>
+    </ul>
+      <div class="cl-v">v1.11.4<span>2026-09-30</span></div>
+    <ul>
+      <li><b>字体检测误报修好了</b>：明明装了<b>宋体、仿宋</b>，面板却说「未安装」——原因是检测时选错了参照对象（中文电脑上那个参照自己就是宋体，怎么量都量不出差别）。现在换成了稳定的参照，<b>装了就能被正确认出来</b>；微软雅黑、思源黑体等其它字体的判断不受影响。</li>
+      <li><b>其它一切照旧</b>：分页、排版、打印和上一版完全一样，一个地方都没动。</li>
+    </ul>
+        <div class="cl-v">v1.11.3<span>2026-09-30</span></div>
+    <ul>
+      <li><b>申论卷现在分三块，各自起页</b>：<b>材料</b>、<b>作答要求</b>、<b>参考答案</b>，后两块都从新的一页开始。参考答案<b>单独成页</b>，翻到卷尾就能直接对答案，不再和材料、题目挤在一起。</li>
+      <li><b>参考答案回来了</b>：之前更新后申论卷上只看得到材料和题目、看不到答案，这一版把答案找回来了，<b>每道题的答案跟题号对齐</b>，正文和「参考答案说明」都在。</li>
+      <li><b>只有一道题时更省纸</b>：如果这份申论只有一题，<b>作答要求就不另起一页、直接跟在材料后面</b>；参考答案仍然单独成页。多道题则三块各起一页。</li>
+    </ul>
+        <div class="cl-v">v1.11.2<span>2026-09-30</span></div>
+    <ul>
+      <li><b>修好两个排版问题</b>：一是<b>申论解析页（看答案那页）排版时题干会变成参考答案</b>，现在题干、要求都正常显示了；二是<b>材料里嵌在句子中间的小图（比如「摄氏度」这类公式）会被顶到单独一行</b>，现在它们乖乖待在句子里、不再打断一行字。行测、申论的其它地方都没动。</li>
+      <li><b>原有功能全部照旧</b>：不勾选任何新选项时，打出来的卷子和你以前的一模一样。</li>
+    </ul>
+        <div class="cl-v">v1.11.1<span>2026-09-29</span></div>
+    <ul>
+      <li><b>对答案二维码可以紧贴题目了</b>：在「设置 ▾」里勾一下「二维码紧贴题目」，<b>末页还有空位时二维码就直接排在最后一题下面，中间空一行，不再单独占一页</b>；空位不够时才另起一页。不勾的话和以前一样，二维码始终单独成页。</li>
+      <li><b>原有功能全部照旧</b>：不勾选时，打出来的卷子和你以前的一模一样，一个地方都没变。</li>
+    </ul>
+<div class="cl-v">v1.10.0<span>2026-09-29</span></div>
+    <ul>
+      <li><b>新增「打印页眉」</b>：在「设置 ▾」里勾一下，<b>每页顶部就会印上试卷标题</b>，翻页时一眼知道看的是哪份卷子。默认不勾，<b>不勾的话卷子和你以前打出来的一模一样</b>。</li>
+      <li><b>分页排得更整齐了</b>：以前偶尔会把一道题从中间拆到下一页，现在<b>能不拆就不拆</b>，页尾更干净。</li>
+      <li><b>原有功能全部照旧</b>：字号、行距、题距、页边距、换页方式、字体、封面，一个都没动。</li>
+    </ul>
+<div class="cl-v">v1.9.7<span>2026-09-29</span></div>
+    <ul>
+      <li><b>修掉字体栏里一块凭空多出来的空白</b>：以前在「正文字体」那里，下拉框和下面那行状态提示（比如「✓ 本机已安装」）之间会空出很大一截，看着像两件事离得很远。现在<b>它们紧挨在一起了</b></li>
+      <li><b>原因</b>：那块空间本来是给「点云朵看安装说明」的浮层留的位置 —— 但<b>字体装好之后云朵就变灰不可点了，说明浮层根本不会再弹出来</b>，留着的空间就成了纯空白</li>
+      <li><b>现在改成按需留</b>：字体没装（云朵可点）时才留出位置，保证说明浮层不会盖住下面的字；<b>字体装了之后不留空间</b>，状态提示紧跟在下拉框下方</li>
+      <li>两处面板（设置面板、预览工具栏）都已同步，<b>字体功能、检测结果、卷面输出全部不受影响</b></li>
+    </ul>
+    <div class="cl-v">v1.9.6<span>2026-09-29</span></div>
+    <ul>
+      <li><b>修好了「思源黑体明明能用却显示未安装」</b>：之前面板提示它没装，但你在预览里选它，出来的确实是一个正常的黑体 —— 这不是错觉，是提示在误导你。<b>现在只要能渲染出黑体，就显示已安装</b></li>
+      <li><b>原因</b>：思源黑体和 Noto 黑体是<b>同一套字体</b>（Adobe 和 Google 合作开发的，两家各自起了名字）。你的电脑装了 Noto 那一支，所以选思源黑体照样能出黑体，没必要再提醒你去装</li>
+      <li><b>其余几款字体不受影响</b>：宋体 / 仿宋 / 微软雅黑如果没装，<b>仍然会提示未安装</b> —— 因为它们的替代品是另一种样子的字（拿黑体当宋体用，排出来的公文就不对了），必须提醒你装对</li>
+      <li>其他功能一律未动，<b>卷面输出与上一版逐项一致</b></li>
+    </ul>
+    <ul>
+      <li><b>调整预览的工具栏不再折成两行</b>：这一版把控件框收小、间距收紧，<b>全屏（1920 宽）下一行就能装下全部调整项</b>，不用再上下找</li>
+      <li><b>常见笔记本外接屏（1280 / 1366）也一并覆盖</b>：以前要 1440 宽才一行，现在 <b>1200 宽起就是一行</b>，工具栏不再白占一行高度、预览区也多出一截</li>
+      <li><b>顺带把几个标签名写短了</b>：「题目间距 / 大图缩放 / 换页方式 / 页边距」→「<b>题距 / 图缩放 / 换页 / 页边</b>」。功能一个没少，点开下拉还是原来的完整选项</li>
+      <li><b>字体下拉框收窄了、长名字会显示省略号</b>：点开看全名不受影响。这是让窄屏也能一行的关键一步</li>
+      <li><b>数字框加宽了，数字不再被挡</b>：字号 / 行距 / 题距 / 图缩放这几个输入框原来偏窄，<b>框里的数字被右侧的上下调整箭头压掉了一半</b>。现在加宽到能完整显示「14.5」这种最长值</li>
+      <li><b>「打印」按钮缩短了，和右边两个按钮一样长</b>：之前它会被拉伸得很长、三个按钮宽度都不一样。现在三个整齐等宽，看着舒服多了</li>
+      <li><b>没有靠缩小字号来硬塞</b>：控件和文字大小都保持原样，只收间距和边框，可读性不打折</li>
+      <li>说明：极窄的窗口（1024 / 1100）仍会折成两行 —— 那个宽度下要一行只能砍功能，不划算。全屏使用完全不受影响</li>
+      <li>其他功能一律未动，<b>卷面输出与上一版逐项一致</b>（页数、分页、题号位置、跨页全部相同）</li>
+    </ul>
+    <ul>
+      <li><b>仿宋_GB2312 点进去能直接下载了</b>：改到你指定的页面（华南师大提供，里面有现成的下载包）。说明里也如实写了来源是「华南师大提供」，不冒充字体厂商官网 —— 这款字体确实<b>没有厂商官方下载页</b></li>
+      <li><b>提示文字大幅精简</b>：鼠标移到云朵上不再啰嗦地念一遍字体名（你点的是哪款字，你自己知道），现在只两行 —— <b>第一行说「装没装」，第二行说「去哪儿装、别踩什么坑」</b></li>
+      <li><b>思源黑体特别提示「请装 Medium 字重」</b>：那家官方仓库里 Light / Regular / Medium / Bold 全都有，随手点第一个下很容易装错、排出来跟公文的观感差很远。<b>建议装 Medium 那一档</b></li>
+      <li><b>思源黑体的识别范围收窄了</b>：只认简体中文这一支（英文名 <code>Source Han Sans SC / CN</code> 或中文名「思源黑体 CN」「思源黑体 Medium」）。装了繁体版、或装了个长得像的替代黑体，<b>不会再被误报成「已安装」</b></li>
+      <li><b>其他字体的提示也一并简化</b>：宋体、仿宋、微软雅黑 → 「随 Windows 自带，缺失请修复系统字体」；方正书宋 → 「方正字库官网，免费商用」</li>
+      <li><b>顺手修掉一个我自己弄出来的显示问题</b>：提示文字从一行变两行后，浮层变高、把下面的状态提示盖住了（两行字糊在一起）。已调整留白修好，现在提示和状态条互不遮挡</li>
+      <li>其他功能一律未动，<b>卷面输出与上一版逐项一致</b>（页数、分页、题号位置、跨页全部相同）</li>
+    </ul>
+    <div class="cl-v">v1.9.3<span>2026-09-29</span></div>
+    <ul>
+      <li><b>修好了「点云朵按钮没反应」</b>：上一版这个按钮<b>根本点不动</b>，是我写错了代码 —— 把链接属性加在了不支持它的元素上，点击不会有任何跳转。现在能正常打开了，向你道歉 🙏</li>
+      <li><b>云朵点进去是「真正的官方来源」</b>：不再一律甩个搜索结果页。思源黑体直连 Adobe 官方开源仓库（免费可商用），方正书宋直连方正字库官网的免费字页面</li>
+      <li><b>系统自带的那几款不再假装有得下</b>：宋体、仿宋、微软雅黑都随 Windows 自带，厂商没有给个人下载的页面。点进去会告诉你「随系统自带、微软官方不建议从第三方下载」，而不是把你引到乱七八糟的下载站</li>
+      <li><b>仿宋_GB2312 特别提醒</b>：很多人以为「方正仿宋」就是它，<b>其实不是同一款字体</b>，装错了字不满意。这个提示已写进按钮说明里</li>
+      <li><b>已装的字体，云朵按钮会变灰不可点</b>：既然已经装了就不用再折腾；鼠标移上去仍有说明，告诉你这款字体什么来头</li>
+      <li>其他功能一律未动，<b>卷面输出与上一版逐项一致</b>（页数、分页、题号位置、跨页全部相同）</li>
+    </ul>
+    <div class="cl-v">v1.9.2<span>2026-09-29</span></div>
+    <ul>
+      <li><b>没装的字体旁边多了个「云朵」小按钮</b>：以前安装引导是一行小字挤在提示后面，位置飘、也看不出能点。现在固定在字体下拉右边，未装时按钮角上带个<b>小黄点</b>，一眼就看见</li>
+      <li><b>鼠标移上去有说明</b>：会告诉你这个字体装没装、点进去能查怎么装，并明确写了<b>「不装也能用，会自动回退」</b> —— 没装不等于这功能没法用</li>
+      <li><b>主面板和预览窗口两边的云朵按钮完全一致</b>：图标、黄点、提示文字、跳转都一样，改哪边都不会出现两边不一样</li>
+      <li><b>检测结论会说实话了</b>：如果你电脑里的字体只有中文名能被识别到（这种情况检测结果不一定准），面板不会再直接给你一句「已安装」，而是说明「结论可能不准，请以实际打印效果为准」</li>
+      <li><b>没装的字体依然可以选</b>，选中照样自动回退到相近字体；六种字体的选项和顺序都没变</li>
+      <li>其他功能一律未动，<b>卷面输出与上一版逐项一致</b>（页数、分页、题号位置、跨页全部相同）</li>
+    </ul>
+    <div class="cl-v">v1.9.1<span>2026-09-29</span></div>
+    <ul>
+      <li><b>修「明明没装字体，面板却显示已安装」</b>：字体检测换了更准的判据，现在真的按你电脑装没装来标，没装就标「（未安装）」</li>
+      <li><b>修误判</b>：以前只要系统里有<i>相近的替代字体</i>（比如 Linux / 精简版系统自带 Noto 系列），宋体、思源黑体就会被误判成「已安装」。现在替代字体不再算作已装 —— 替代字体照样能顶上出卷，但不会骗你说装了</li>
+      <li><b>预览窗口里的字体菜单和主面板完全同步</b>：两边标注一致，不会出现「面板标了、预览里没标」</li>
+      <li><b>没装的字体依然可以选</b>，选中会自动回退到最相近的可用字体，功能没被砍</li>
+      <li>其他功能一律未动，卷面输出与上一版一致</li>
+    </ul>
+    <div class="cl-v">v1.9.0<span>2026-09-29</span></div>
+    <ul>
+      <li><b>打印字迹不发虚了</b>：卷面文字之前用的是深灰而不是纯黑，屏幕上看没问题，但打印出来会发灰发淡。这次正文和章节标题都改成纯黑，打出来明显更实</li>
+      <li><b>新增「正文字体」选择</b>：现在是宋体、思源黑体、微软雅黑、仿宋、仿宋_GB2312、方正书宋_GBK 六种可选，<b>默认宋体</b>（和以前一样）；调版式的预览窗口里也能直接换着看效果</li>
+      <li>面板会<b>自动检测你电脑装没装</b>这些字体：已装的正常可选，没装的显示为灰色并标注「未安装」，旁边给一个安装引导按钮</li>
+      <li><b>没装的字体也能选，会自动用相近的字体顶上</b> —— 比如选了「仿宋_GB2312」但电脑里只有「仿宋」，就会用仿宋；选「思源黑体」而电脑里是 Win10/11 自带的同款「Noto Sans SC」，就用它。所以不用先装字体也能正常出卷</li>
+      <li><b>字体没有内置进脚本</b>（一个中文字体动辄 20 多 MB，塞进来体积要涨上百倍），用的是你电脑里已有的字体 —— 工具依旧轻量、纯本地</li>
+      <li>英文和数字保持原来的 Times New Roman 不变，符合国考卷面规范</li>
+      <li>这次改动<b>不影响其他任何功能</b>：默认宋体时，生成的卷子和上一版逐项一致（页数、分页、题号位置全部相同）</li>
+    </ul>
+    <div class="cl-v">v1.8.34<span>2026-09-29</span></div>
+    <ul>
+      <li>这次只是<b>把上一版的更新功能正式发出去</b>，卷面效果没有任何变化</li>
+      <li>上一版加的「永久更新」按钮当时没抬版本号，导致 <b>油猴用户收不到</b>（油猴只认版本号，号没变它就认为已是最新）。这版把号抬上去了，油猴下次检查更新时就能发现并升级</li>
+      <li>用书签方式的用户不受影响，照旧点一下就是最新版</li>
+    </ul>
+    <div class="cl-v">v1.8.33<span>2026-09-24</span></div>
+    <ul>
+      <li>修课程里打开的题组点「排版并打印」报「没抓到题目」——现在课程题组也能正常抓取和打印了</li>
+      <li>修题目是慢慢加载出来时，面板一直不显示题数、点生成却提示没抓到的问题</li>
+      <li>页面里切换题目时不再漏抓，统计和排版都会自动跟上</li>
+      <li><b>油猴用户现在能真正更新到最新版了</b>：以前在面板里点更新，刷新一下又变回旧版；现在面板里多了一个「永久更新」按钮，点它会弹出安装窗口，确认后就<b>真的换掉版本，刷新、重启都还在</b></li>
+      <li>原来的就地更新改叫「仅预览」，仍然可以一键看到新版效果，只是刷新后会回到旧版（想留新版请用「永久更新」）</li>
+      <li>用书签方式的用户<b>不受任何影响</b>，照旧点一下就是最新版，无需改动书签</li>
+    </ul>
     <div class="cl-v">v1.8.32<span>2026-09-24</span></div>
     <ul>
       <li>这次只是内部整理，版面、分页、打印效果与上一版完全一样，不影响使用</li>
@@ -578,7 +720,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 </div>
 
 <footer>
-  当前版本 v1.8.32
+  当前版本 v1.11.10
   <div class="foot-stat">总访问 <span class="busuanzi-value" id="busuanzi_value_site_pv">—</span> 次</div>
   <div class="foot-contact"><a href="https://www.xiaohongshu.com/user/profile/6864dfd9000000001d01781a" target="_blank" rel="noopener">联系作者</a></div>
 </footer>
@@ -587,7 +729,7 @@ code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px}
 </div>
 <script>
 document.getElementById('copy').addEventListener('click', function(){
-  var v = "javascript:(function(){var API='https://api.github.com/repos/zoij1033/fenbi-print/contents/fenbi-print.user.js?ref=main';var RAW='https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';var FB='https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';function b64(b){try{return decodeURIComponent(escape(atob(b)));}catch(e){return atob(b);}}function strip(){['fp-panel','fp-mask','fp-done','fp-loading','fp-loading-style','fp-style'].forEach(function(id){var e=document.getElementById(id);if(e&&e.parentNode)e.parentNode.removeChild(e);});}function showLoading(){var st=document.createElement('style');st.id='fp-loading-style';st.textContent='#fp-loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483647;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.2);padding:18px 22px;min-width:250px;font-family:-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;color:#1f2937}#fp-loading .t{font-size:14px;font-weight:700;margin-bottom:10px}#fp-loading .bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden}#fp-loading .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#2563eb,#0891b2);border-radius:99px;animation:fpL 1.1s ease-in-out infinite}@keyframes fpL{0%{margin-left:-40%}100%{margin-left:100%}}#fp-loading .s{font-size:12px;color:#64748b;margin-top:9px}#fp-loading .e{font-size:12px;color:#94a3b8;margin-top:2px}';document.head.appendChild(st);var d=document.createElement('div');d.id='fp-loading';d.innerHTML='<div class=t>粉笔打印脚本加载中…</div><div class=bar><i></i></div><div class=s id=fp-ls>正在并行连接多个源…</div><div class=e id=fp-le>已等待 0s</div>';document.body.appendChild(d);}function setS(t){var e=document.getElementById('fp-ls');if(e)e.textContent=t;}function stopL(){var e=document.getElementById('fp-loading');if(e&&e.parentNode)e.parentNode.removeChild(e);}function fetchText(u,ms,dec){var ac=new AbortController();var to=setTimeout(function(){ac.abort();},ms);return fetch(u,{cache:'no-store',signal:ac.signal}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){clearTimeout(to);var o=dec?dec(t):t;if(!/const VERSION\s*=/.test(o))throw 0;return o;});}function decApi(t){try{return b64(JSON.parse(t).content.replace(/[\s\r\n]/g,''));}catch(e){throw e;}}strip();showLoading();var t0=Date.now();var iv=setInterval(function(){var e=document.getElementById('fp-le');if(e)e.textContent='已等待 '+Math.round((Date.now()-t0)/1000)+'s';},1000);function inj(c){strip();var s=document.createElement('script');s.textContent=c;document.head.appendChild(s);stopL();}Promise.race([fetchText(API,9000,decApi),fetchText(RAW+'?t='+Date.now(),12000,null)]).then(function(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}).catch(function(){setS('GitHub 源不可达,尝试 CDN 党底…');return fetchText(FB+'?t='+Date.now(),15000,null);}).then(function(txt){if(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}}).catch(function(){clearInterval(iv);setS('加载失败:三个源均不可达,请检查网络或确认 GitHub 仓库为 Public');var e=document.getElementById('fp-loading');if(e){e.style.cursor='pointer';e.onclick=stopL;}setTimeout(stopL,9000);});})();";
+  var v = "javascript:(function(){var API='https://api.github.com/repos/zoij1033/fenbi-print/contents/fenbi-print.user.js?ref=main';var RAW='https://github.com/zoij1033/fenbi-print/raw/refs/heads/main/fenbi-print.user.js';var FB='https://cdn.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';var FY='https://fastly.jsdelivr.net/gh/zoij1033/fenbi-print@main/fenbi-print.user.js';function b64(b){try{return decodeURIComponent(escape(atob(b)));}catch(e){return atob(b);}}function strip(){['fp-panel','fp-mask','fp-done','fp-loading','fp-loading-style','fp-style'].forEach(function(id){var e=document.getElementById(id);if(e&&e.parentNode)e.parentNode.removeChild(e);});}function showLoading(){var st=document.createElement('style');st.id='fp-loading-style';st.textContent='#fp-loading{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483647;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.2);padding:18px 22px;min-width:250px;font-family:-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;color:#1f2937}#fp-loading .t{font-size:14px;font-weight:700;margin-bottom:10px}#fp-loading .bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden}#fp-loading .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#2563eb,#0891b2);border-radius:99px;animation:fpL 1.1s ease-in-out infinite}@keyframes fpL{0%{margin-left:-40%}100%{margin-left:100%}}#fp-loading .s{font-size:12px;color:#64748b;margin-top:9px}#fp-loading .e{font-size:12px;color:#94a3b8;margin-top:2px}';document.head.appendChild(st);var d=document.createElement('div');d.id='fp-loading';d.innerHTML='<div class=t>粉笔打印脚本加载中…</div><div class=bar><i></i></div><div class=s id=fp-ls>正在并行连接多个源…</div><div class=e id=fp-le>已等待 0s</div>';document.body.appendChild(d);}function setS(t){var e=document.getElementById('fp-ls');if(e)e.textContent=t;}function stopL(){var e=document.getElementById('fp-loading');if(e&&e.parentNode)e.parentNode.removeChild(e);}function fetchText(u,ms,dec){var ac=new AbortController();var to=setTimeout(function(){ac.abort();},ms);return fetch(u,{cache:'no-store',signal:ac.signal}).then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){clearTimeout(to);var o=dec?dec(t):t;if(!/const VERSION\s*=/.test(o))throw 0;return o;});}function decApi(t){try{return b64(JSON.parse(t).content.replace(/[\s\r\n]/g,''));}catch(e){throw e;}}strip();showLoading();var t0=Date.now();var iv=setInterval(function(){var e=document.getElementById('fp-le');if(e)e.textContent='已等待 '+Math.round((Date.now()-t0)/1000)+'s';},1000);function inj(c){strip();var s=document.createElement('script');s.textContent=c;document.head.appendChild(s);stopL();}Promise.race([fetchText(API,9000,decApi),fetchText(RAW+'?t='+Date.now(),12000,null)]).then(function(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}).catch(function(){setS('GitHub 源不可达,尝试 CDN 兜底…');return fetchText(FB+'?t='+Date.now(),15000,null).catch(function(){setS('CDN 不可达,尝试 fastly 兜底…');return fetchText(FY+'?t='+Date.now(),15000,null);});}).then(function(txt){if(txt){clearInterval(iv);setS('加载成功,正在初始化面板…');inj(txt);}}).catch(function(){clearInterval(iv);setS('加载失败:三个源均不可达,请检查网络或确认 GitHub 仓库为 Public');var e=document.getElementById('fp-loading');if(e){e.style.cursor='pointer';e.onclick=stopL;}setTimeout(stopL,9000);});})();";
   var tip = document.getElementById('copyTip');
   function done(ok){
     tip.textContent = ok ? '已复制，新建书签粘贴到「网址」里即可' : '复制失败，请手动复制下方代码';
