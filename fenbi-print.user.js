@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.11.6
+// @version      1.9.7
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -31,7 +31,7 @@
      * 一、配置
      * ================================================================ */
 
-    const VERSION = '1.11.6';
+    const VERSION = '1.9.7';
     const STORE_KEY = 'fenbi_print_settings';
     const STORE_POS = 'fenbi_print_panel_pos';
     const TITLE_PLACEHOLDER = '正在读取当前试卷…';
@@ -88,10 +88,8 @@
         shenlunMode: 'none',   // none = 不留作答区；auto = 按题目字数算；fixed = 固定高度
         shenlunSpace: 8,       // 仅在 fixed 模式下生效（cm）
         qrcode: true,
-        qrInline: false,       // 二维码紧贴题目（卷尾有空位就排在最后一题下面，中间空一行）。默认关，版面与旧版一致
         countdown: 10,
-        autoPrint: true,
-        header: false          // 打印页眉（每页顶部印试卷标题）。默认关，版面与旧版一致
+        autoPrint: true
     };
 
     // 排版相关的数值边界，防止乱填导致样式崩坏
@@ -145,13 +143,7 @@
         { key: 'simsun', label: '宋体',
             // 宋体的等价别名：Windows SimSun、macOS 的宋体即 STSong / Songti SC
             chain: '"SimSun","STSong","Songti SC","Noto Serif CJK SC",serif',
-            probe: ['SimSun', 'STSong', 'Songti SC'],
-            // probeExtra —— FontFace local() 直查通道的额外候选（v1.11.5）。
-            //   ⚠️ 中文名绝不能进 probe/canvas 通道（见下方 139 行警告），但 local() 通道
-            //   查的是本机字体库的注册名、查不到就 reject，**没有任何渲染兜底歧义**，
-            //   中文名在这里是安全的，而且是 Windows 中文系统上字体的真实注册名
-            //   （simSun.ttc 的中文族名就叫「宋体」，英文 locale 下才注册成 SimSun）。
-            probeExtra: ['宋体'] },
+            probe: ['SimSun', 'STSong', 'Songti SC'] },
         { key: 'sourcehan', label: '思源黑体',
             // 思源黑体的族名：Source Han Sans 是 Adobe 名、Noto Sans CJK 是 Google 名 ——
             // **两者是同一套字**（Adobe/Google 合作开发，字形基本一致，只是发行方各自命名）。
@@ -186,25 +178,20 @@
                 '思源黑体 CN', '思源黑体 Medium',
                 // ↓ 同源异名（Google 发行版）。放在最后：它是「能渲染出黑体」的兜底依据，
                 //   不是「本体已装」的证据。两者在用户视角下等价，故合并。
-                'Noto Sans SC', 'Noto Sans CJK SC'],
-            probeExtra: ['思源黑体'] },
+                'Noto Sans SC', 'Noto Sans CJK SC'] },
         { key: 'yahei', label: '微软雅黑',
             chain: '"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",sans-serif',
-            probe: ['Microsoft YaHei', 'Microsoft YaHei UI'],
-            probeExtra: ['微软雅黑'] },
+            probe: ['Microsoft YaHei', 'Microsoft YaHei UI'] },
         { key: 'fangsong', label: '仿宋',
             // 仿宋与仿宋_GB2312 是两套字体：装了 _GB2312 不等于装了仿宋，故 probe 里不含它
             chain: '"FangSong","STFangsong","FangSong_GB2312",serif',
-            probe: ['FangSong', 'STFangsong'],
-            probeExtra: ['仿宋'] },
+            probe: ['FangSong', 'STFangsong'] },
         { key: 'fsgb2312', label: '仿宋_GB2312',
             chain: '"FangSong_GB2312","FangSong","STFangsong","SimSun",serif',
-            probe: ['FangSong_GB2312'],
-            probeExtra: ['仿宋_GB2312'] },
+            probe: ['FangSong_GB2312'] },
         { key: 'fzssgbk', label: '方正书宋_GBK',
             chain: '"FZShuSong_GBK","FZShuSong-Z01S","FZShuSong-Z01","SimSun",serif',
-            probe: ['FZShuSong_GBK', 'FZShuSong-Z01S', 'FZShuSong-Z01'],
-            probeExtra: ['方正书宋_GBK'] }
+            probe: ['FZShuSong_GBK', 'FZShuSong-Z01S', 'FZShuSong-Z01'] }
     ];
     const FONT_BY_KEY = Object.fromEntries(FONTS.map((f) => [f.key, f]));
     // 未知 key 一律回退宋体 —— 杜绝 font-family:undefined 写进生成页 CSS 导致整卷崩坏
@@ -300,49 +287,15 @@
     //      两条措施一起用：
     //      ① 双样本：两串**字符集不同**的样本（S1 带拉丁字母数字、S2 以 CJK 为主且字符集不同）。
     //         污染只能让「部分字符」落到替换字体上，两串样本必然有一串露馅。
-    //      ② 双基准：Arial 与 monospace 两个基准族各测一遍。
+    //      ② 双基准：serif 与 monospace 两个基准族各测一遍。
     //         真字体在两个基准下都该命中；靠兜底族蹭到的假命中只在某一个基准下命中。
     //      两条都通过才判为「已装」。
     //
-    //    ⚠️ 基准族为什么不能是 serif（v1.11.4 修复，用户真机实测踩中）：
-    //      旧版双基准是 serif + monospace。在**中文 Windows** 上，serif 渲染含中文的文本时
-    //      会解析到**宋体**（Firefox 的 zh-CN 默认衬线字体就是宋体；Chromium 的中文
-    //      per-script 回退同样落到宋体）。基准一旦就是宋体本身：
-    //        · 测「SimSun」→「"SimSun", serif」与「serif」渲染同一款字体 → 宽度差恒 0 → 漏判；
-    //        · 更糟的是宋体/仿宋/仿宋_GB2312/方正书宋这些中易系字体的宽度特征完全一致
-    //          （汉字固定全宽 1em、ASCII 固定半宽 0.5em），同一串文本量出来的总宽分毫不差 →
-    //          只要基准落到其中任何一款，**全家连带漏判**。
-    //      用户真机（宋体 5.16 + 仿宋 5.01 + 仿宋_GB2312 2.00 齐全，截图为证）面板却报
-    //      「宋体、仿宋未安装」，正是这个机制。开发时用 fontconfig + Chrome 模拟复现：
-    //      以「宽度特征与宋体一致的字体」做基准，SimSun/FangSong 双双误判 false；
-    //      换 Arial 基准后双双正确判 true，且不存在的字体/未装的雅黑仍正确判 false。
-    //      （v1.9.x 的「25 个族名 0 误判」实测是在无中易字体的 Linux 上做的，
-    //      只覆盖了「未装→false」路径，「已装→true」路径在真机上首次暴露。）
-    //
-    //      Arial 做基准为什么稳：
-    //        · Windows / macOS 必装；Linux 上 fontconfig 会把 Arial 映射到同度量的
-    //          Liberation Sans —— 三个平台都有着落；
-    //        · 它是**西文比例字体**，拉丁字母宽窄不一，与中易系「ASCII 统一 0.5em」的
-    //          固定半宽必然不同 → 混排样本的判别力永远在；
-    //        · 它是具体族名，不吃 locale 泛族映射的亏（serif/sans-serif 会随语言环境变脸）。
-    //      monospace 保留：等宽拉丁（Consolas / Courier New）宽度同样 ≠ 0.5em，第二道防线仍在。
-    //
-    //    ⚠️ v1.11.5 为什么光改基准还不够（用户真机 Firefox 复测踩中）：
-    //      用户是 Firefox，v1.11.4 后宋体/仿宋/仿宋_GB2312 仍报「未安装」，而微软雅黑、
-    //      思源黑体正常。canvas 差分对 SimSun 失效，要求「"SimSun", Arial」与「Arial」
-    //      连**拉丁字符**都量不出差别 —— 也就是 SimSun 压根没被采纳。结合 Firefox 的
-    //      font-visibility 机制（about:config 的 layout.css.font-visibility.*，
-    //      1=只暴露基础系统字体白名单 / 3=全部，privacy.resistFingerprinting 会强制降到 1；
-    //      白名单里有 Arial、微软雅黑等常见字体，**宋体/仿宋这类不在**）高度吻合：
-    //      白名单内的雅黑正常、白名单外的中易系全部「未安装」。这类「浏览器刻意隐藏」
-    //      是渲染层面的，canvas 通道原理上测不出来。于是 v1.11.5 上双通道：
-    //        通道一 FontFace local() 直查（上面 _ffProbe*）：不渲染、直接查本机字体库
-    //          的注册名清单，查不到就 reject，零兜底歧义；中文注册名（宋体/仿宋…）
-    //          也能被问到 —— 恰好补上 canvas 通道「中文名有毒」的盲区；
-    //        通道二 canvas 差分（原逻辑）：直查判「没有」时复核一遍，两道都否定才报未装。
-    //      另评估过 Local Font Access API（window.queryLocalFonts）：只有 Chromium 实现、
-    //      Firefox 不支持（本次用户正是 Firefox），且要弹权限框 —— 不采用。
-    const FONT_PROBE_BASES = ['Arial', 'monospace'];   // 基准兜底族：具体西文字体 + 等宽（勿用 serif —— 见上）
+    //    实测（真实 Chromium，本机只有 Noto 系列、无 SimSun / 无 Source Han Sans）：
+    //      单基准单样本：宋体 true（错）、思源黑体 true（错）  ← 修前的故障
+    //      双样本双基准：宋体 false、思源黑体 false          ← 修后
+    //      25 个族名（含中英文名、别名、哨兵假名）判定与 fc-list 逐一吻合，0 误判。
+    const FONT_PROBE_BASES = ['serif', 'monospace'];   // 两个基准兜底族（也是唯一保证存在的通用族）
     const FONT_PROBE_S1 = '粉笔试卷排版打印ABCabc0123（一）';   // 含拉丁 + 数字 + CJK 标点
     const FONT_PROBE_S2 = 'Wgjlq@#0189粉笔试卷';                 // 拉丁小写 + 符号 + CJK，与 S1 字符集不同
     const FONT_PROBE_PX = 72;            // 探测字号。越大，族间宽度差越显著、相对误差越小
@@ -369,47 +322,6 @@
     //    取 0.0003 —— 距真实最差约 2 倍余量，距「不存在」的 0 亦有近 1 个数量级余量。
     //    （0.001 曾压过上面两个窄字体，是错的；调低而非调高才对。）
     //    maxTrips 里连测三次一致才当「无差异」，是为了防亚像素舍入偶发落在阈值附近而误判。
-
-    /* ========== v1.11.5 通道一：FontFace local() 直查（异步预热） ========== */
-
-    // 直查结果缓存：name → true(存在) / false(不存在) / null(测不了)
-    const _ffProbeMap = new Map();
-    let _ffProbeSupported = undefined;   // FontFace 构造器可用性，首次探测时确定
-
-    // 测一个族名：new FontFace(临时名, 'local("族名")') 再 load()。
-    //   resolve → 本机字体库里真注册着这个名字；reject → 没有。
-    // 与 canvas 差分法的本质区别：**完全不做渲染**，直接查字体库的注册名清单 ——
-    //   查不到就是查不到，不存在「换个字形顶上」的兜底歧义。所以：
-    //     · 中文名（宋体 / 仿宋_GB2312 / 方正书宋_GBK…）在这里是安全的
-    //       （canvas 通道里中文名有毒，见 FONTS 定义处的警告）；
-    //     · 命中是硬证据：字体文件就在本机，Windows 中文系统上字体的中文注册名
-    //       （simSun.ttc 就叫「宋体」）也能被问到 —— 这正是 canvas 通道覆盖不到的盲区。
-    // 超时/异常一律 resolve(null)（测不了），由 canvas 通道兜底，绝不挂死流程。
-    function _ffProbeOne(name) {
-        return new Promise((resolve) => {
-            if (_ffProbeSupported === false) return resolve(null);
-            let ff;
-            try {
-                if (typeof FontFace === 'undefined') { _ffProbeSupported = false; return resolve(null); }
-                ff = new FontFace('fp-probe-tmp', 'local("' + String(name).replace(/["\\]/g, '') + '")');
-            } catch (e) { _ffProbeSupported = false; return resolve(null); }
-            const t = setTimeout(() => resolve(null), 4000);
-            ff.load().then(
-                () => { clearTimeout(t); resolve(true); },
-                () => { clearTimeout(t); resolve(false); }
-            );
-        });
-    }
-
-    // 批量预热：把所有字体的 probe + probeExtra 候选一次查完（并发，单个是微秒级字体库查询）
-    async function _ffProbeWarmup() {
-        if (_ffProbeSupported === false) return;
-        const names = new Set();
-        FONTS.forEach((f) => (f.probe || []).concat(f.probeExtra || []).forEach((n) => names.add(n)));
-        await Promise.all(Array.from(names).map(async (n) => {
-            _ffProbeMap.set(n, await _ffProbeOne(n));
-        }));
-    }
 
     // 复用一个 canvas 上下文（每次 new 一个 canvas 开销不小，探测要跑十几个族名）
     let _fontProbeCtxCache = undefined, _fontProbeOff = false;
@@ -454,30 +366,8 @@
     }
 
     // 检测单个字体族名。返回 true=已装 / false=未装 / null=环境不支持检测
-    // 判据（v1.11.5 起为双通道）：
-    //   ① FontFace local() 直查（probeFonts 里异步预热好的缓存）：
-    //      命中 = 本机字体库里确有此名，是硬证据 → 直接判「已装」；
-    //   ② 直查说「没有」时，再走 canvas 差分复核 —— **两道都否定才定「未装」**。
-    //      canvas 说「有」时仍信 canvas：local() 的名字匹配范围可能偏窄
-    //      （部分浏览器只认 full/PS 名），宁可少报未装、不制造「装了却说没有」的误报；
-    //   ③ 缓存还没预热完 / FontFace 不可用 → 只跑 canvas 差分（同步，v1.11.4 旧行为）。
+    // 判据：两串样本 × 两个基准族，共 4 组必须**全部**命中才认为「已装」。
     function isFontAvailable(name) {
-        if (name === undefined || name === null || name === "") return false;
-        if (_ffProbeMap.has(name)) {
-            if (_ffProbeMap.get(name) === true) return true;   // ① 直查命中 —— 铁证
-            if (_fontProbeOff) return false;                   // canvas 不可用，只看直查结论
-            const cv = _isFontAvailableByCanvas(name);         // ② canvas 复核
-            return (cv === true) ? true : false;
-        }
-        // ③ canvas 旧路。注意：canvas 降级（_fontProbeOff）**不能连坐直查通道** ——
-        //    直查不依赖 canvas，只要预热完成就有结论（v1.11.5 单测抓到的第一个坑）。
-        if (_fontProbeOff) return null;
-        return _isFontAvailableByCanvas(name);
-    }
-
-    // canvas 差分法（v1.11.4 原逻辑原样抽出）：两串样本 × 两个基准族，
-    // 共 4 组必须**全部**命中才认为「已装」。
-    function _isFontAvailableByCanvas(name) {
         if (_fontProbeOff) return null;
         if (name === undefined || name === null || name === "") return false;
         let probed = false;
@@ -510,12 +400,6 @@
             }
             if (r === null) unknown = true;
         }
-        // v1.11.5：FontFace 直查通道的中文候选命中 → 弱置信「已装」（sour:'cjk'，
-        // 状态条会提示以实际打印效果为准）。这些中文名**不走 canvas 通道**
-        // （canvas 里任何中文字串都会被渲染兜底命中，见 FONTS 定义处的警告）。
-        for (const extra of (entry.probeExtra || [])) {
-            if (_ffProbeMap.get(extra) === true) { cjkHit = true; break; }
-        }
         if (cjkHit) return { confirmed: true, sour: 'cjk' };
         return unknown ? { confirmed: null, sour: 'unknown' } : { confirmed: false, sour: 'none' };
     }
@@ -533,9 +417,6 @@
         _fontProbing = (async () => {
             // 等字体系统就绪，超时 1.5s 兜底，绝不无限等（@run-at document-idle）
             try { await Promise.race([document.fonts && document.fonts.ready, sleep(1500)]); } catch (e) { /* 忽略 */ }
-            // v1.11.5：先跑 FontFace local() 直查预热（批量并发，微秒级查询），
-            //   再进入各字体的融合判定。直查不可用/超时的名字会自动回落 canvas 通道，不会卡住。
-            await _ffProbeWarmup();
             const out = {};
             FONTS.forEach((f) => { out[f.key] = isFontEntryAvailable(f); });
             _fontAvail = out; _fontProbing = null;
@@ -601,43 +482,6 @@
             if (i % 2 === 1) return seg;
             return seg.replace(BLANK_RE1, BLANK_HTML).replace(BLANK_RE2, BLANK_HTML);
         }).join('');
-    }
-
-    // 标记材料里「嵌在文字流中」的行内小图（1.11.2 新增）。
-    //
-    // 背景：生成页 CSS 有一条 .fp-mat img{display:block;margin:10px auto}，本意是让
-    // 材料【独立成段】的配图（结构上几乎总是 <p><img …></p>）居中独占一行。
-    // 但它无差别命中了所有材料图片 —— 粉笔材料里还有大量【嵌在文字中间】的行内图，
-    // 典型就是 LaTeX 公式图：<p>…纯水分子在低于<img flag="tex" …>时才会凝结；…</p>。
-    // display:block 把行内公式从句子里劈出来，变成独立居中行 —— 真机现象就是
-    // 「碰到摄氏度这类小图片就换行」，一张公式图占一整行，句子断成三截。
-    //
-    // 这里按结构判定：图片的父块里除它之外还有别的节点（元素或非空白文本）→
-    // 它嵌在内容流里 → 打 data-fp-inline 标记，由 CSS 恢复行内显示；
-    // 父块里只有这张图 → 独立成段的配图，维持块级居中不变。
-    // flag="tex" 的公式图无条件视为行内（公式永远是行内符号，哪怕独占一段也应
-    // 跟随该段的 text-align，而不是自己变成块级）。
-    //
-    // 只在 buildHtml 的材料分支调用（题干/选项没有 display:block 问题，不用管）。
-    // 纯字符串进、字符串出，不碰原版页面。
-    function markMatInline(html) {
-        if (!html || html.indexOf('<img') === -1) return html;
-        const d = document.createElement('div');
-        d.innerHTML = html;
-        let marked = false;
-        d.querySelectorAll('img').forEach((img) => {
-            const p = img.parentNode;
-            if (!p) return;
-            if (img.getAttribute('flag') === 'tex'){ img.setAttribute('data-fp-inline', '1'); marked = true; return; }
-            let hasOther = false;
-            for (const n of p.childNodes){
-                if (n === img) continue;
-                if (n.nodeType === 1){ hasOther = true; break; }
-                if (n.nodeType === 3 && n.textContent.replace(/[\s\u00a0\u3000]/g, '').length){ hasOther = true; break; }
-            }
-            if (hasOther){ img.setAttribute('data-fp-inline', '1'); marked = true; }
-        });
-        return marked ? d.innerHTML : html;
     }
 
     // 选项内容常常整段包在 <p> 里。把 p 解开成行内流，
@@ -732,7 +576,7 @@
             pagination: 'fp-pagination', figScale: 'fp-figScale',
             shenlunMode: 'fp-shenlunMode', shenlunSpace: 'fp-shenlunSpace',
             qrcode: 'fp-qrcode', countdown: 'fp-countdown',
-            autoPrint: 'fp-autoPrint', header: 'fp-header', qrInline: 'fp-qrInline'
+            autoPrint: 'fp-autoPrint'
         };
         Object.keys(ids).forEach((k) => {
             const el = $(ids[k]);
@@ -750,7 +594,7 @@
             pagination: 'fp-pagination', figScale: 'fp-figScale',
             shenlunMode: 'fp-shenlunMode', shenlunSpace: 'fp-shenlunSpace',
             qrcode: 'fp-qrcode', countdown: 'fp-countdown',
-            autoPrint: 'fp-autoPrint', header: 'fp-header', qrInline: 'fp-qrInline'
+            autoPrint: 'fp-autoPrint'
         };
         Object.keys(ids).forEach((k) => {
             const el = $(ids[k]);
@@ -790,13 +634,8 @@
             shenlunMode: $('fp-shenlunMode').value,
             shenlunSpace: num($('fp-shenlunSpace').value, s.shenlunSpace, 'shenlunSpace'),
             qrcode: !!$('fp-qrcode').checked,
-            // 二维码不单独成页：面板「设置 ▾」里的「尽量和题目排在一起」。
-            // 元素缺失时按默认（关）处理 —— 关 = 与旧版完全一致。
-            qrInline: (function () { var el = $('fp-qrInline'); return el ? !!el.checked : !!DEFAULTS.qrInline; })(),
             countdown: num($('fp-countdown').value, s.countdown, 'countdown'),
             autoPrint: !!$('fp-autoPrint').checked,
-            // 页眉开关：面板「设置 ▾」里的「打印页眉」。元素缺失时按默认（关）处理
-            header: (function () { var el = $('fp-header'); return el ? !!el.checked : !!DEFAULTS.header; })(),
             // 兜底顺序：① 面板里用户填的（或已回填的）→ ② 页面真实标题 → ③ 兜底名。
             // 拦截 'null'/'undefined'：把 null 赋给 input.value 会被 JS 强转成字符串 'null'。
             // readPaperTitle() 读不到时可返回空串，这里必须再兜一层，否则封面会印出空白。
@@ -1123,13 +962,8 @@
         <input type="number" id="fp-shenlunSpace" class="fp-input">
         <div class="fp-hint">一般小题填 6～10，大作文填 20～26</div>
     </div>
-    <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-header"> 打印页眉（每页顶部印试卷标题）</label>
-    </div>
     <div class="fp-field"><label class="fp-check"><input type="checkbox" id="fp-qrcode"> 末页附对答案二维码</label>
         <div class="fp-hint">需联网生成；取不到会自动隐藏，不影响正文</div>
-    </div>
-    <div class="fp-field" id="fp-qrInline-wrap"><label class="fp-check"><input type="checkbox" id="fp-qrInline"> 二维码紧贴题目</label>
-        <div class="fp-hint">勾选后二维码排在最后一题下面，中间空一行；末页放不下时才单独成页。不勾选则始终单独成页</div>
     </div>
     <div class="fp-field">
         <label class="fp-label">关闭页面倒计时 (秒)</label>
@@ -1815,45 +1649,11 @@
     }
 
     // 题干：抓 app-format-html，取不到再退到 article.content
-    //
-    // ⚠️ 1.11.2 修复「申论解析页题干变成参考答案」：
-    //   解析页（app-view-paper）的题目结构是 article.content（题干）+ app-result-common（答案区），
-    //   而【答案区里也有 app-format-html】—— 装的是参考答案正文和试卷标题。
-    //   旧写法 ti.querySelector('app-format-html') 按文档序命中答案区那个（题干 article.content
-    //   反而排在它前面，但 || 短路根本轮不到它），于是「题干位置」印出去的全是参考答案，
-    //   用户看到的卷子就是「只有材料和答案，没有题干问题」。
-    //   修法：遍历所有 app-format-html，跳过落在答案区里的；全被跳过才退到 article.content。
-    //   做题页的 app-format-html 不在 app-result-common 里，行为与旧版完全一致。
     function pickStem(ti) {
-        let fmt = null;
-        ti.querySelectorAll('app-format-html').forEach((n) => {
-            if (!fmt && !n.closest('app-result-common')) fmt = n;
-        });
-        const box = fmt || ti.querySelector('article.content');
+        const box = ti.querySelector('app-format-html') || ti.querySelector('article.content');
         if (!box) return '';
         // 过长的下划线/空格统一成等长填空线，避免撑破版面；
         // 行内公式图按 latex 内容补分数标记（fp-tex-frac），供渲染层单独放大、下沉对齐
-        return markTexFrac(blankify(box.innerHTML));
-    }
-
-    // 参考答案：抓答案区 section-reference 里的 app-format-html（正文 + 说明同框）。
-    //
-    // 1.11.3 新增「申论卷第三块：参考答案」。答案区 app-result-common 里按 section 分节：
-    //   section-video    → 解析视频
-    //   section-reference → 参考答案（正文 + 「参考答案说明」都在同一个 app-format-html 里）
-    //   section-keypoint  → 答题要点
-    //   section-source    → 题目来源
-    // 这里只抓 section-reference，其余节一概不要。
-    //
-    // ⚠️ 不走 cleanClone：cleanClone 里的 JUNK_SELECTOR 含 .analysis / .answer-wrap，
-    //   若误命中参考答案结构会把正文一并删掉。这里直接 querySelector 目标节点，
-    //   再走 blankify + markTexFrac（与题干同一套净化，公式图随字号缩放、对齐）。
-    //   定位用 [id^="section-reference-"] 前缀匹配，鲁棒应对 id 后缀（形如 -3_2_bpcli）变化。
-    function pickAnswer(ti) {
-        const sec = ti.querySelector('[id^="section-reference-"]');
-        if (!sec) return '';
-        const fmt = sec.querySelector('app-format-html');
-        const box = fmt || sec;
         return markTexFrac(blankify(box.innerHTML));
     }
 
@@ -2164,20 +1964,12 @@
             if (m) items.push({ kind: 'material', html: cleanClone(m).innerHTML, index: 1 });
             const ti = tiNow();
             if (ti) {
-                // 单题兜底：作答要求不起新页（紧跟材料），参考答案单独起新页
-                items.push({ kind: 'chapter', name: '作答要求', desc: '', break: false });
+                items.push({ kind: 'chapter', name: '作答要求', desc: '' });
                 items.push({
                     kind: 'question', num: esc(normNum(text(ti.querySelector('.title-index')))),
-                    stemHtml: pickStem(ti), answerHtml: pickAnswer(ti),
-                    options: [], maxUnits: 0, maxImgW: 0,
+                    stemHtml: pickStem(ti), options: [], maxUnits: 0, maxImgW: 0,
                     allImage: false, figure: false, key: keyOf(ti) || 'q0'
                 });
-            }
-            // 单题申论同样三块齐全：参考答案独立章节
-            const qs = items.filter((x) => x.kind === 'question');
-            if (qs.length) {
-                items.push({ kind: 'chapter', name: '参考答案', desc: '', break: true });
-                qs.forEach((q) => items.push({ kind: 'answer', num: q.num, answerHtml: q.answerHtml, key: q.key }));
             }
             return items;
         }
@@ -2232,7 +2024,6 @@
                     kind: 'question',
                     num: esc(normNum(text(ti.querySelector('.title-index')))),
                     stemHtml: pickStem(ti),
-                    answerHtml: pickAnswer(ti),
                     options: [],
                     maxUnits: 0,
                     maxImgW: 0,
@@ -2250,14 +2041,8 @@
         Array.from(matMap.keys()).sort((a, b) => a - b).forEach((n) => {
             items.push({ kind: 'material', html: matMap.get(n), index: n });
         });
-        // 作答要求章节：多题（>1 题）时单独起新页，与材料断开；单题（<=1 题）时
-        // 不起新页、紧跟材料之后（用户反馈：只有一题时作答要求不必单独分页）。
-        const multiQ = questions.length > 1;
-        if (questions.length) items.push({ kind: 'chapter', name: '作答要求', desc: '', break: multiQ });
+        if (questions.length) items.push({ kind: 'chapter', name: '作答要求', desc: '' });
         questions.forEach((q) => items.push(q));
-        // 参考答案章节：永远单独起新页（用户要求答案单独成页，单题也不例外）
-        if (questions.length) items.push({ kind: 'chapter', name: '参考答案', desc: '', break: true });
-        questions.forEach((q) => items.push({ kind: 'answer', num: q.num, answerHtml: q.answerHtml, key: q.key }));
 
         return items;
     }
@@ -2354,12 +2139,7 @@
         const CONTENT_W = (210 - mg[1] - mg[3]) * MM;
         const CONTENT_H = (297 - mg[0] - mg[2]) * MM;
         const PFOOTER_H = 22;
-        // ★ 1.10.0：页眉是固定高度的 flex 项，一出现就吃掉正文的高度预算。
-        //   算「一页能放多少正文」的 BODY_H 必须同步减掉它，否则正文可放行数照旧
-        //   按整页算 → 每页都顶出页面下沿 → 打印时被 overflow:hidden 悄悄裁掉最后一行。
-        //   这是最难排查的一类 bug：屏幕上不一定看得出来，一打印就少字。
-        const PHEADER_H = opt.header ? 22 : 0;
-        const BODY_H = CONTENT_H - PFOOTER_H - PHEADER_H;
+        const BODY_H = CONTENT_H - PFOOTER_H;
 
         let html = `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -2402,17 +2182,6 @@ p{margin:0 0 .5em}
    浏览器要是再在两头补上外边距，预估就会偏，内容顶出页面下沿 */
 .fp-pbody>:first-child{margin-top:0!important}
 .fp-pbody>:last-child{margin-bottom:0!important}
-/* ---------- 页眉（可选，面板「打印页眉」控制）----------
-   与页脚同样式：定高 flex 项，文字居中、下方一条细分隔线。
-   高度必须与 buildHtml 里的 PHEADER_H 一致（22px），否则 BODY_H 算错。 */
-.fp-pheader{flex:0 0 ${PHEADER_H}px;height:${PHEADER_H}px;
-  line-height:${PHEADER_H}px;text-align:center;position:relative;
-  font-size:10pt;color:#555;font-family:"SimSun","STSong",serif;
-  border-bottom:1px solid #d8dde5;margin-bottom:8px;
-  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-/* 页面左上角小字：与页脚署名同款缩小的风格，保持整卷视觉统一。 */
-.fp-pheader .fp-htitle{display:inline-block;max-width:100%;
-  padding:0 2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* 页脚：页码居中，署名靠左不动。署名写死，没有面板入口。 */
 .fp-pfooter{position:relative;flex:0 0 ${PFOOTER_H}px;height:${PFOOTER_H}px;
   line-height:${PFOOTER_H}px;text-align:center;
@@ -2479,15 +2248,7 @@ p{margin:0 0 .5em}
 .fp-cover-barcode .box span{writing-mode:vertical-rl;letter-spacing:3px;font-size:13px}
 .fp-cover-barcode .tip{text-align:left;line-height:1.8;font-size:13px}
 .fp-cover-sign{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#64748b;letter-spacing:1px}
-/* 封面后的空白缓冲页（模拟真实试卷翻开后的背面空白）。
-   ★ 1.11.6：高度 262mm → 297mm。
-      262mm 不足一张 A4（297mm），在 Firefox 分页引擎里会因
-      「内容高度 < 一页 + page-break-after:always」的组合，在缓冲页之后再
-      多挤出一张空白页 —— 这正是「封面第1页、缓冲第2页、第三页异常空白」的根因。
-      改成 297mm 后缓冲页正好占满一张纸，Firefox/Edge/Chrome 都稳定。
-      同时去掉悬空的 page:fpblank —— 代码里从没有 @page fpblank 定义，
-      Firefox 对悬空命名页可能强制额外分页。 */
-.fp-blank{height:297mm;page-break-after:always;break-after:page}
+.fp-blank{height:262mm;page-break-after:always;break-after:page;page:fpblank}
 
 /* ---------- 章节 ---------- */
 .fp-chapter{text-align:left;margin-bottom:16px;page-break-after:avoid;break-after:avoid}
@@ -2507,12 +2268,6 @@ p{margin:0 0 .5em}
   font-size:${Math.max(9, opt.fontSize - 1)}px!important;line-height:1.5!important}
 .fp-mat th{background:#f4f4f4!important;font-weight:700}
 .fp-mat img{max-width:100%!important;height:auto!important;display:block;margin:10px auto}
-/* 1.11.2：材料里嵌在文字流中的小图必须保持行内（见 markMatInline）——
-   上面那条 display:block 是给「独立成段的配图」用的；行内公式图（摄氏度等）被它
-   劈成独立居中行，一句话断成三截。打标记的图恢复行内，尺寸/对齐交给
-   tagTexFracImg 的内联值（tex 图）或浏览器默认基线（其他行内小图）。
-   独立成段的配图（<p><img></p>）不打标记，维持块级居中不变。 */
-.fp-mat img[data-fp-inline]{display:inline!important;margin:0!important}
 img{border:0!important;box-shadow:none!important;background:transparent!important;
   break-inside:avoid;page-break-inside:avoid}
 tr{break-inside:avoid;page-break-inside:avoid}
@@ -2648,17 +2403,8 @@ tr{break-inside:avoid;page-break-inside:avoid}
 .fp-space-mid{border-top:0;border-top-left-radius:0;border-top-right-radius:0;margin:0}
 
 /* ---------- 二维码 ---------- */
-/* 独立成页（默认）：整块起新页，垂直留白多一点，像一张单独的附页 */
 .fp-qr{page-break-before:always;break-before:page;text-align:center;padding-top:70px}
 .fp-qr img{width:190px;height:190px;border:1px solid #ddd;padding:8px;background:#fff}
-/* ★ 1.11.0 可选：二维码紧贴题目 —— 当作正文流的最后一块，排在末页题目后面，
-   与题目之间空一行（margin-top 24px，约一个正文行高）。
-   尺寸整体收小一号，避免为了塞一个二维码反而挤掉一整页题目。
-   .fp-qr-inline 排在 .fp-pbody 里（是个普通 flex 项），不吃 page-break-before。 */
-.fp-qr-inline{margin:24px auto 0;text-align:center;page-break-inside:avoid;break-inside:avoid}
-.fp-qr-inline img{width:132px;height:132px;border:1px solid #ddd;padding:6px;background:#fff}
-.fp-qr-inline .fp-qr-t{font-size:15px;font-weight:700;color:#2563eb;margin-bottom:4px}
-.fp-qr-inline .fp-qr-s{font-size:11px;color:#666;margin-bottom:8px}
 
 /* ---------- 分页策略 ----------
    三档都保证：单个选项不拆、图片不拆、表格行不拆、标题不落单。
@@ -2735,12 +2481,8 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 
         items.forEach((it) => {
             if (it.kind === 'chapter') {
-                // 1.11.3：章节是否分页优先读显式 it.break；未指定时退回旧规则
-                //   （第一个章节不分页、后续章节分页，行测的材料分析分组沿用这套）。
-                //   申论三块里作答要求/参考答案都显式给了 break，故不受影响。
-                const forceBreak = it.break === true ? true : (it.break === false ? false : !firstChapter);
+                const cls = firstChapter ? 'fp-chapter' : 'fp-chapter break';
                 firstChapter = false;
-                const cls = forceBreak ? 'fp-chapter break' : 'fp-chapter';
                 html += `<div class="${cls}"><h2>${it.name}</h2>${it.desc ? `<p>${it.desc}</p>` : ''}</div>`;
                 return;
             }
@@ -2749,11 +2491,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
                 matIndex++;
                 const n = it.index || matIndex;
                 const hasHead = /材料\s*[一二三四五六七八九十\d]+/.test(it.html);
-                // 1.11.2：材料 HTML 过 markMatInline（行内小图打标记，防被块级化劈成独立行）+
-                // markTexFrac（行内公式图锁尺寸/对齐 —— 以前只有题干和选项做这两步，
-                // 材料里的公式图既不跟字号缩放、还会被 .fp-mat img 的 display:block 劈成独立居中行）
-                const matHtml = markTexFrac(markMatInline(blankify(it.html)));
-                html += `<div class="fp-mat">${hasHead ? '' : `<h3>材料${n}</h3>`}${matHtml}</div>`;
+                html += `<div class="fp-mat">${hasHead ? '' : `<h3>材料${n}</h3>`}${blankify(it.html)}</div>`;
                 return;
             }
 
@@ -2820,56 +2558,12 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
 
                 html += `</div>`;
             }
-
-            if (it.kind === 'answer') {
-                // 参考答案（1.11.3 申论第三块）：与题干同款悬挂缩进 + 题号，但
-                // 不渲染选项、不渲染作答区，只印参考答案正文 + 说明。
-                const numW = it.num ? textWidthEm(it.num, opt.fontSize, fontChainOf(opt.fontFamily)) : 0;
-                const hang = it.num ? Math.max(numW + 0.5, 0.8) : 0;
-                const hangStyle = hang ? ` style="--hang:${hang.toFixed(3)}em;--ohang:${hang.toFixed(3)}em"` : '';
-
-                let ans = it.answerHtml || '';
-                if (it.num) {
-                    const d = document.createElement('div');
-                    d.innerHTML = ans;
-                    const p = d.querySelector('p');
-                    const mark = `<span class="fp-num">${it.num}</span>`;
-                    if (p) {
-                        p.innerHTML = mark + p.innerHTML;
-                        p.classList.add('fp-first');
-                    } else {
-                        d.innerHTML = `<p class="fp-first">${mark}${d.innerHTML}</p>`;
-                    }
-                    ans = d.innerHTML;
-                }
-                html += `<div class="fp-q"${hangStyle}><div class="fp-stem">${ans}</div></div>`;
-            }
         });
-
-        // ---------- 二维码 ----------
-        // ★ 1.11.0：可选的「不单独成页」。
-        //   开（opt.qrInline）：二维码作为正文流里最后一块（.fp-qr-inline）拼进 #fp-flow 内，
-        //       分页器 collect() 遍历 flow.children 时把它当普通块处理 ——
-        //       末页放得下就跟在题目后面，放不下就顺流推到下一页，天然实现「空位够就贴、不够就翻页」。
-        //       ⚠️ 必须拼在关闭 #fp-flow 的 </div>【之前】，否则落在容器外，collect 收不到。
-        //   关（默认）：独立 .fp-sheet 起新页，与旧版逐字节一致，拼在 #fp-flow 关闭之后（顶层）。
-        //   图用大号尺寸（200px）仍会偏大、容易独占一页，故 inline 版收成 132px。
-        if (opt.qrcode && opt.qrInline) {
-            const pidI = getPaperId();
-            if (pidI) {
-                const urlI = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data='
-                    + encodeURIComponent('https://www.fenbi.com/exercise/answercard/' + pidI);
-                html += `<div class="fp-qr-inline">
-<div class="fp-qr-t">扫一扫，对答案</div>
-<div class="fp-qr-s">用粉笔 App 扫码，提交答案后可评分并查看解析</div>
-<img src="${urlI}" alt="答案二维码" onerror="this.parentNode.style.display='none'"></div>`;
-            }
-        }
 
         html += `</div>`;
 
-        // ---------- 二维码（独立成页） ----------
-        if (opt.qrcode && !opt.qrInline) {
+        // ---------- 二维码 ----------
+        if (opt.qrcode) {
             const pid = getPaperId();
             if (pid) {
                 const url = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data='
@@ -3180,17 +2874,11 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   // 切页粒度由面板的「换页方式」决定（whole / smart / ultra）
   var MODE = ${JSON.stringify(opt.pagination || 'smart')};
   var SIG = ${JSON.stringify(opt.signature || '')};
-  // 页眉文字（可选）。空串 = 不生成页眉节点，排版与旧版逐字节一致。
-  // ★ 转义三重保险（1.8.27 曾因生成页脚本里出现字面「小于号+斜杠+script」
-  //   被浏览器当场截断脚本块，整个分页逻辑没执行）：
-  //   ① JSON.stringify 转义引号与反斜杠；
-  //   ② 再把「<」拆成 \u003C，彻底杜绝生成页里出现能被 HTML 解析器识别的标签开头；
-  //   ③ 赋值走 textContent（不是 innerHTML），标题里的标签不会被当元素渲染。
-  var HEADER_TXT = ${JSON.stringify(opt.header ? String(opt.title || '') : '').replace(/</g, '\\u003C')};
 
   function mkPage(){
     var p = document.createElement('div');
     p.className = 'fp-page';
+    var b = document.createElement('div'); b.className = 'fp-pbody';
     var f = document.createElement('div'); f.className = 'fp-pfooter';
     var sg = document.createElement('span'); sg.className = 'fp-sig';
     var pg = document.createElement('span'); pg.className = 'fp-pg';
@@ -3198,37 +2886,8 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     sg.textContent = SIG;
     tg.textContent = '粉笔题库';
     f.appendChild(sg); f.appendChild(tg); f.appendChild(pg);
-    // ★ 1.10.0 页眉（可选）必须排在正文之前，与页脚一道夹住正文。
-    //   注意：一旦这里多出一个子项，页面的 firstChild 就不再是 .fp-pbody ——
-    //   这正是 1.8.27 空白卷事故的根源，因此本版已把全文对 firstChild 的
-    //   依赖全部换成 bodyOf()（见下方），任何新增 flex 项都不会再打乱取容器。
-    if (HEADER_TXT) {
-      var h = document.createElement('div'); h.className = 'fp-pheader';
-      var ht = document.createElement('span'); ht.className = 'fp-htitle';
-      ht.textContent = HEADER_TXT;
-      h.appendChild(ht);
-      p.appendChild(h);
-    }
-    var b = document.createElement('div'); b.className = 'fp-pbody';
     p.appendChild(b); p.appendChild(f);
-    // 预挂正文容器引用：此后整条贴页流水线都走 bodyOf(p)，不再认 firstChild
-    p.__fpBody = b;
     return p;
-  }
-
-  // ★ 1.10.0 前置安全改造（源自 1.8.27 空白卷事故复盘）
-  //   取一页的正文容器。绝不使用 page.firstChild —— 它是个会随功能增减
-  //   而漂移的指针：只要有人往 mkPage() 里加一个新 flex 项（页眉、水印…），
-  //   所有依赖 firstChild 的写法都会静默地删错节点/量错高度，而且不报错。
-  //   优先用 mkPage() 预挂的 __fpBody；克隆或其他来源的页面节点则按类名查。
-  function bodyOf(pg){
-    if (!pg) return null;
-    var b = pg.__fpBody;
-    // 缓存失效的情形：节点被克隆过（cloneNode 不带自有属性），或 __fpBody 已摘出文档
-    if (b && b.parentNode === pg) return b;
-    b = pg.querySelector('.fp-pbody');
-    if (b) pg.__fpBody = b;
-    return b;
   }
 
   // 这些标签本身不撑高度，只是把内容裹了一层。
@@ -4224,10 +3883,10 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     // 不能直接量 .fp-pbody —— 它是 flex:1，内容不满时被拉伸成整页高，
     // 量出来永远等于 BODY_H，真实留白会被完全抹平。
     function pageH(){
-      var b = bodyOf(cur), kids = b ? b.children : null;
-      if (!kids || !kids.length) return 0;
+      var b = cur.firstChild, kids = b.children;
+      if (!kids.length) return 0;
       var f = kids[0], l = kids[kids.length - 1];
-      var mt = (b.firstElementChild === f) ? 0 : (parseFloat(window.getComputedStyle(f).marginTop) || 0);
+      var mt = parseFloat(window.getComputedStyle(f).marginTop) || 0;
       return l.getBoundingClientRect().bottom - f.getBoundingClientRect().top + (mt > 0 ? mt : 0);
     }
 
@@ -4245,20 +3904,9 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         var n = items[k] && items[k].node;
         if (n && n.parentNode) n.parentNode.removeChild(n);
       }
-      // ★ 1.10.0 修正（原写法 cur.firstChild 是 1.8.27 空白卷的元凶）：
-      //   容器显式取 bodyOf(cur) —— firstChild 是个会随功能增减而漂移的指针，
-      //   页眉一出现它就指向 .fp-pheader，于是这一行会把页眉当空壳删掉，
-      //   页眉一没、.fp-pbody 补位，下一轮连正文容器一起删 → 整页只剩页眉。
-      //   查询范围**保持原样**（后代查询）：外壳是嵌套的（.fp-q > .fp-stem /
-      //   .fp-opts），换成「只查直接子元素」会漏掉中间层空壳，实测页面里
-      //   会残留空 .fp-q，卷面与旧版不一致。这里只修容器取法，不动查询范围。
-      //   末尾的 parentNode 兜底是新增的：防「上一步误删后新元素补位」被连带清理。
-      var b = bodyOf(cur);
-      if (b){
-        var sh = b.querySelectorAll('.fp-q,.fp-stem,.fp-opts,.fp-mat');
-        for (var k2 = 0; k2 < sh.length; k2++)
-          if (!sh[k2].children.length && sh[k2].parentNode) sh[k2].parentNode.removeChild(sh[k2]);
-      }
+      var sh = cur.firstChild.querySelectorAll('.fp-q,.fp-stem,.fp-opts,.fp-mat');
+      for (k = 0; k < sh.length; k++)
+        if (!sh[k].children.length && sh[k].parentNode) sh[k].parentNode.removeChild(sh[k]);
       for (var key in st) delete st[key];
       used = pageH();
     }
@@ -4285,7 +3933,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       // 先收集每个 qid / mid 最后一次出现的壳
       var lastQ = {}, lastM = {};
       for (var p = 0; p < pages.length; p++){
-        var bd = bodyOf(pages[p]);
+        var bd = pages[p].firstChild;
         if (!bd) continue;
         var qs = bd.querySelectorAll('.fp-q[data-fp-qid]');
         for (var z = 0; z < qs.length; z++)
@@ -4296,7 +3944,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       }
       // 再扫一遍：凡是「不是该 qid 最后一次出现」的壳，后面都还跟着续排 → 清零下间距
       for (p = 0; p < pages.length; p++){
-        var bd2 = bodyOf(pages[p]);
+        var bd2 = pages[p].firstChild;
         if (!bd2) continue;
         var qs2 = bd2.querySelectorAll('.fp-q[data-fp-qid]');
         for (var y = 0; y < qs2.length; y++){
@@ -4318,7 +3966,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     }
 
     function put(items){
-      for (var y = 0; y < items.length; y++) place(bodyOf(cur), items[y], st);
+      for (var y = 0; y < items.length; y++) place(cur.firstChild, items[y], st);
       return pageH();
     }
 
@@ -4362,7 +4010,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
             && (lim - h0) > lim * SPLIT_MIN && canSplitNode(b.items[0].node)){
           var parts = splitTextAtom(b.items[0], lim - h0);
           if (parts){
-            place(bodyOf(cur), reatom(b.items[0], parts.first), st);
+            place(cur.firstChild, reatom(b.items[0], parts.first), st);
             used = pageH();
             flushPage();
             // 续段塞回队列：下一轮站在空白页上重新量，还放不下就再撕一次
@@ -4384,7 +4032,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
             unplace(prev.items);
             var p3 = splitTextAtom(prev.items[0], room);
             if (p3){
-              place(bodyOf(cur), reatom(prev.items[0], p3.first), st);
+              place(cur.firstChild, reatom(prev.items[0], p3.first), st);
               used = pageH();
               flushPage();
               // 让出来的那几行要排在 b 前面，否则题干和选项的顺序就颠倒了
@@ -4392,7 +4040,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
               continue;
             }
             // 撕不动就原样放回去，当什么都没发生
-            place(bodyOf(cur), prev.items[0], st);
+            place(cur.firstChild, prev.items[0], st);
             used = pageH();
           }
         }
@@ -4407,7 +4055,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         var p2 = splitTextAtom(b.items[0], lim);
         if (p2){
           unplace(b.items);
-          place(bodyOf(cur), reatom(b.items[0], p2.first), st);
+          place(cur.firstChild, reatom(b.items[0], p2.first), st);
           used = pageH();
           flushPage();
           blocks.splice(i + 1, 0, { items: [ reatom(b.items[0], p2.rest) ] });
@@ -4439,8 +4087,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
   // 没有任何元素子节点）。这类空壳会让续排页看上去像「空题框 / 掉题号」，统一删掉最稳。
   function sweepEmptyShells(pages){
     for (var p = 0; p < pages.length; p++){
-      // ★ 1.10.0：显式取正文容器，不认 firstChild（页眉会让 firstChild 漂移）
-      var body = bodyOf(pages[p]);
+      var body = pages[p].firstChild;
       if (!body) continue;
       var sh = body.querySelectorAll('.fp-q,.fp-stem,.fp-opts,.fp-mat');
       for (var s = 0; s < sh.length; s++){
@@ -4448,10 +4095,6 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
       }
     }
   }
-
-  // 溢出容忍阈值：见 paginate() 里收紧重切那段的说明。1.8.27 的经验值是 1px
-  // 太严（原地打转跑 3 遍），6px 恰好拦住没有任何意义的舍入差、又拦不住真溢出。
-  var TOL = 6;
 
   function paginate(){
     var flow = document.getElementById('fp-flow');
@@ -4489,24 +4132,15 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
         // .fp-pbody 在屏幕模式下是 flex:1，内容不满时会被拉伸成整页高，
         // 量它的高度永远等于 BODY_H，真实溢出/留白会被掩盖。
         // 改量首末子元素的实际跨度。
-        // ★ 1.10.0：容器走 bodyOf()，不认 firstChild（页眉会让 firstChild 漂移）
-        var b = bodyOf(pages[i]);
-        if (!b) continue;
-        var kids = b.children;
+        var b = pages[i].firstChild, kids = b.children;
         if (!kids.length) continue;
         var hh = kids[kids.length - 1].getBoundingClientRect().bottom - kids[0].getBoundingClientRect().top;
         if (hh - BODY_H > over) over = hh - BODY_H;
       }
-      // ★ 1.10.0：容忍阈值 1px → 6px（源自 1.8.27 分页慢的根因）
-      //   那几像素不是真装不下，而是「put() 估算高度」与「最终布局实测」之间的
-      //   固有舍入差（亚像素行高、外边距合并取整）。旧逻辑「溢出 4px 就收 4px」，
-      //   下一轮几乎必然又量到同样的 4px —— 原地打转，全量重切跑 3 遍（1895ms）。
-      //   6px 在 A4 上约 0.16mm，打印和肉眼都无感；而真正装不下的溢出至少是
-      //   一个行高量级（本项目行高 25.6px），6px 拦不住它。
-      if (over <= TOL) break;
-      // 下限 0.95 只是防失控的兜底。同时收紧量给足（over + TOL），
-      // 别让下一轮还差一口气 —— 否则就是「收 4px、还差 5.2px、再收」的振荡。
-      var next = Math.max(BODY_H * 0.95, lim - Math.max(4, Math.ceil(over + TOL)));
+      if (over <= 1) break;
+      // 下限 0.95 只是防失控的兜底。切页改成实测之后 over 通常只剩几像素舍入误差，
+      // 一压就到下限反而是信号：说明真有拆不动的东西，再压纯属浪费版面。
+      var next = Math.max(BODY_H * 0.95, lim - Math.max(4, Math.ceil(over)));
       if (next >= lim) break;            // 已经压到下限，再跑几轮也是白跑
       lim = next;
       // 连着两轮都收不住，说明当前粒度下没有能塞进去的切法：
@@ -4519,10 +4153,7 @@ body.pag-whole .fp-mat{break-inside:avoid;page-break-inside:avoid}
     for (i = 0; i < pages.length; i++){
       // 封面/封底/二维码是独立的 .fp-sheet，不进入 pages 数组。
       // 正文页从第 1 页开始连续编号，每页都显示署名和页码。
-      // ★ 1.10.0：页码节点显式查询，不再用 lastChild.lastChild 这种尾链定位 ——
-      //   页眉在页首不改变尾链，但尾链本身经不起「往页面里加新 flex 项」的折腾。
-      var pgEl = pages[i].querySelector('.fp-pfooter .fp-pg');
-      if (pgEl) pgEl.textContent = '第 ' + (i + 1) + ' 页 / 共 ' + pages.length + ' 页';
+      pages[i].lastChild.lastChild.textContent = '第 ' + (i + 1) + ' 页 / 共 ' + pages.length + ' 页';
     }
     flow.innerHTML = '';
     flow.style.display = 'none';
