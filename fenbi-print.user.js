@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         粉笔试卷排版打印
 // @namespace    http://tampermonkey.net/
-// @version      1.11.9
+// @version      1.11.10
 // @description  把粉笔在线试卷（行测 / 申论）一键排版成 A4 真卷：题号悬挂缩进、屏幕直接显示 A4 分页、题目可跨页，支持直接打印或导出 PDF。本地运行，无付费、无次数限制。
 // @match        *://spa.fenbi.com/*
 // @match        *://www.fenbi.com/spa/*
@@ -2374,7 +2374,7 @@
         //   算「一页能放多少正文」的 BODY_H 必须同步减掉它，否则正文可放行数照旧
         //   按整页算 → 每页都顶出页面下沿 → 打印时被 overflow:hidden 悄悄裁掉最后一行。
         //   这是最难排查的一类 bug：屏幕上不一定看得出来，一打印就少字。
-        const PHEADER_H = opt.header ? 22 : 0;
+        const PHEADER_H = opt.header ? 30 : 0;
         const BODY_H = CONTENT_H - PFOOTER_H - PHEADER_H;
 
         let html = `<!DOCTYPE html>
@@ -2394,9 +2394,17 @@ html{-webkit-text-size-adjust:none!important;text-size-adjust:none!important}
    而脚本按 15mm 算高度），每页就会比可打印区高出一截，
    page-break-after:always 又强制分页 → 每页后跟着一张空白页。 */
 @page{size:A4;margin:0}
-
+/*
+    Times new Roman只负责渲染0-9,A-Z,a-z,其他字符使用用户自定义字体
+    后续fontfamily使用该fontface
+*/
+@font-face{
+  font-family:"fp-times";
+  src:local("Times New Roman");
+  unicode-range:U+0030-0039,U+0041-005A,U+0061-007A;
+}
 html{background:#e5e7eb}
-body{margin:0;padding:0;background:#fff;font-family:${fontChainOf(opt.fontFamily)};
+body{margin:0;padding:0;background:#fff;font-family:"fp-times",${fontChainOf(opt.fontFamily)};
   font-size:${opt.fontSize}px;color:#000000;line-height:${opt.lineHeight};
   orphans:2;widows:2;text-rendering:optimizeLegibility}
 ul,li,ol{list-style:none;margin:0;padding:0}
